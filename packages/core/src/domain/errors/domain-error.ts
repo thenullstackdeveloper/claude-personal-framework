@@ -14,3 +14,11 @@ export class InvalidSlugError extends DomainError {
 export class InvalidContentHashError extends DomainError {
   readonly code = 'INVALID_CONTENT_HASH';
 }
+
+export class PresetNotFoundError extends DomainError {
+  readonly code = 'PRESET_NOT_FOUND';
+}
+
+export class CyclicExtendsError extends DomainError {
+  readonly code = 'CYCLIC_EXTENDS';
+}

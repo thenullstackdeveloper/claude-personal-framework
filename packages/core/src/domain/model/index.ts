@@ -1,6 +1,8 @@
 export { Agent } from './agent.js';
 export { ArtifactRef } from './artifact-ref.js';
 export { Command } from './command.js';
+export { Composition } from './composition.js';
+export type { CompositionInit } from './composition.js';
 export { ContentHash } from './content-hash.js';
 export { AgentId, CommandId, PresetName, SkillId } from './identifiers.js';
 export { Override } from './override.js';
