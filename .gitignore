@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+
+# Claude Code local config (no secrets / no machine-specific state)
+.claude/settings.local.json
+.claude/.cache/
