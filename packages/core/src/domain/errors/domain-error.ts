@@ -22,3 +22,15 @@ export class PresetNotFoundError extends DomainError {
 export class CyclicExtendsError extends DomainError {
   readonly code = 'CYCLIC_EXTENDS';
 }
+
+export class InvalidPresetError extends DomainError {
+  readonly code = 'INVALID_PRESET';
+}
+
+export class InvalidProjectManifestError extends DomainError {
+  readonly code = 'INVALID_PROJECT_MANIFEST';
+}
+
+export class ArtifactNotFoundError extends DomainError {
+  readonly code = 'ARTIFACT_NOT_FOUND';
+}
