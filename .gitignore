@@ -7,3 +7,8 @@ coverage/
 # Claude Code local config (no secrets / no machine-specific state)
 .claude/settings.local.json
 .claude/.cache/
+
+# Output of `claude-fw install` — sources of truth live in agents/, skills/, commands/
+.claude/agents/
+.claude/skills/
+.claude/commands/
