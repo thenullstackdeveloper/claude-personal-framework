@@ -54,3 +54,7 @@ export const formatInstallReport = (report: InstallCommandReport): string => {
   }
   return lines.join('\n');
 };
+
+export const formatInstallReportJson = (report: InstallCommandReport): string => {
+  return JSON.stringify(report, null, 2);
+};

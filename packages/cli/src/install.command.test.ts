@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { formatInstallReport, runInstall } from './install.command.js';
+import { formatInstallReport, formatInstallReportJson, runInstall } from './install.command.js';
 
 describe('runInstall (CLI command)', () => {
   let framework: string;
@@ -116,5 +116,18 @@ describe('formatInstallReport', () => {
       commands: [],
     });
     expect(out).toContain('(no artifacts to install)');
+  });
+});
+
+describe('formatInstallReportJson', () => {
+  it('returns valid parseable JSON', () => {
+    const report = {
+      presetName: 'react-native',
+      agents: ['docs-manager', 'pr-creator'],
+      skills: ['hexagonal-rn'],
+      commands: [],
+    };
+    const out = formatInstallReportJson(report);
+    expect(JSON.parse(out)).toEqual(report);
   });
 });
