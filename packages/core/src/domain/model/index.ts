@@ -8,6 +8,7 @@ export { AgentId, CommandId, PresetName, SkillId } from './identifiers.js';
 export { Override } from './override.js';
 export { Preset } from './preset.js';
 export type { PresetInit } from './preset.js';
+export type { ProjectManifest } from './project-manifest.js';
 export { Settings } from './settings.js';
 export type { Permissions } from './settings.js';
 export { Skill } from './skill.js';

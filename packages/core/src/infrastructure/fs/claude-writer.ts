@@ -1,5 +1,6 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { WriterPort } from '../../application/use-cases/install/install.ports.js';
 import type { Agent } from '../../domain/model/agent.js';
 import type { Command } from '../../domain/model/command.js';
 import type { Skill } from '../../domain/model/skill.js';
@@ -10,7 +11,7 @@ const SKILLS_SUBDIR = 'skills';
 const COMMANDS_SUBDIR = 'commands';
 const ARTIFACT_EXT = '.md';
 
-export class ClaudeWriter {
+export class ClaudeWriter implements WriterPort {
   constructor(public readonly projectRoot: string) {}
 
   private claudeDir(): string {

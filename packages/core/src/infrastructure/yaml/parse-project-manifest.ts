@@ -3,12 +3,8 @@ import { InvalidProjectManifestError } from '../../domain/errors/domain-error.js
 import { ArtifactRef } from '../../domain/model/artifact-ref.js';
 import { AgentId, CommandId, PresetName, SkillId } from '../../domain/model/identifiers.js';
 import { Override } from '../../domain/model/override.js';
+import type { ProjectManifest } from '../../domain/model/project-manifest.js';
 import { isObject } from './yaml-helpers.js';
-
-export type ProjectManifest = {
-  readonly presetName: PresetName;
-  readonly overrides: readonly Override[];
-};
 
 const parseArtifactRef = (ref: string): ArtifactRef => {
   const idx = ref.indexOf(':');

@@ -1,5 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { CatalogPort } from '../../application/use-cases/install/install.ports.js';
 import { ArtifactNotFoundError } from '../../domain/errors/domain-error.js';
 import { Agent } from '../../domain/model/agent.js';
 import { Command } from '../../domain/model/command.js';
@@ -26,7 +27,7 @@ const readArtifactFile = async (path: string, label: string): Promise<string> =>
   }
 };
 
-export class CatalogReader {
+export class CatalogReader implements CatalogPort {
   constructor(public readonly frameworkRoot: string) {}
 
   async listPresets(): Promise<readonly Preset[]> {
