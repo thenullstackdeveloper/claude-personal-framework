@@ -96,4 +96,71 @@ describe('CatalogReader', () => {
       );
     });
   });
+
+  describe('listAgents / listSkills / listCommands', () => {
+    it('returns empty arrays when the directories do not exist', async () => {
+      const reader = new CatalogReader(root);
+      expect(await reader.listAgents()).toEqual([]);
+      expect(await reader.listSkills()).toEqual([]);
+      expect(await reader.listCommands()).toEqual([]);
+    });
+
+    it('lists agents with their frontmatter description', async () => {
+      await writeFileAt(
+        'agents/docs-manager.md',
+        '---\nname: docs-manager\ndescription: Manages docs.\n---\n\nbody',
+      );
+      await writeFileAt(
+        'agents/pr-creator.md',
+        '---\nname: pr-creator\ndescription: Creates PRs.\n---\n\nbody',
+      );
+      const reader = new CatalogReader(root);
+      const summaries = await reader.listAgents();
+      const byId = Object.fromEntries(summaries.map((s) => [s.id.toString(), s.description]));
+      expect(byId).toEqual({
+        'docs-manager': 'Manages docs.',
+        'pr-creator': 'Creates PRs.',
+      });
+    });
+
+    it('returns empty description when an agent has no frontmatter', async () => {
+      await writeFileAt('agents/plain.md', 'just a body, no frontmatter');
+      const reader = new CatalogReader(root);
+      const [summary] = await reader.listAgents();
+      expect(summary?.id.toString()).toBe('plain');
+      expect(summary?.description).toBe('');
+    });
+
+    it('skips files that are not valid slugs', async () => {
+      await writeFileAt('agents/Valid-Looking.md', 'x');
+      await writeFileAt('agents/valid-one.md', 'x');
+      const reader = new CatalogReader(root);
+      const summaries = await reader.listAgents();
+      expect(summaries.map((s) => s.id.toString())).toEqual(['valid-one']);
+    });
+
+    it('ignores non-md files', async () => {
+      await writeFileAt('agents/foo.md', 'x');
+      await writeFileAt('agents/README.txt', 'docs');
+      const reader = new CatalogReader(root);
+      const summaries = await reader.listAgents();
+      expect(summaries).toHaveLength(1);
+    });
+
+    it('listSkills works the same way', async () => {
+      await writeFileAt('skills/nestjs-hex.md', '---\ndescription: NestJS hexagonal.\n---\nbody');
+      const reader = new CatalogReader(root);
+      const [summary] = await reader.listSkills();
+      expect(summary?.id.toString()).toBe('nestjs-hex');
+      expect(summary?.description).toBe('NestJS hexagonal.');
+    });
+
+    it('listCommands works the same way', async () => {
+      await writeFileAt('commands/build-android.md', '---\ndescription: Build Android.\n---\nbody');
+      const reader = new CatalogReader(root);
+      const [summary] = await reader.listCommands();
+      expect(summary?.id.toString()).toBe('build-android');
+      expect(summary?.description).toBe('Build Android.');
+    });
+  });
 });

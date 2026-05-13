@@ -1,6 +1,6 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { WriterPort } from '../../application/use-cases/install/install.ports.js';
+import type { WriterPort } from '../../application/ports/writer.port.js';
 import type { Agent } from '../../domain/model/agent.js';
 import type { Command } from '../../domain/model/command.js';
 import type { Skill } from '../../domain/model/skill.js';

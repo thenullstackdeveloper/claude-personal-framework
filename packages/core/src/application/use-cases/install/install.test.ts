@@ -9,7 +9,7 @@ import { Preset } from '../../../domain/model/preset.js';
 import type { ProjectManifest } from '../../../domain/model/project-manifest.js';
 import { Settings } from '../../../domain/model/settings.js';
 import { Skill } from '../../../domain/model/skill.js';
-import type { CatalogPort, WriterPort } from './install.ports.js';
+import type { CatalogPort, WriterPort } from '../../ports/index.js';
 import { install } from './install.use-case.js';
 
 class InMemoryCatalog implements CatalogPort {
@@ -22,6 +22,27 @@ class InMemoryCatalog implements CatalogPort {
 
   async listPresets(): Promise<readonly Preset[]> {
     return this.presets;
+  }
+
+  async listAgents() {
+    return [...this.agents.keys()].map((id) => ({
+      id: AgentId.of(id),
+      description: '',
+    }));
+  }
+
+  async listSkills() {
+    return [...this.skills.keys()].map((id) => ({
+      id: SkillId.of(id),
+      description: '',
+    }));
+  }
+
+  async listCommands() {
+    return [...this.commands.keys()].map((id) => ({
+      id: CommandId.of(id),
+      description: '',
+    }));
   }
 
   async readAgent(id: AgentId): Promise<Agent> {

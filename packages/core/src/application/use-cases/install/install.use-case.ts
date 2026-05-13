@@ -6,7 +6,7 @@ import type { ProjectManifest } from '../../../domain/model/project-manifest.js'
 import { Skill } from '../../../domain/model/skill.js';
 import { type Patch, applyOverrides } from '../../../domain/services/apply-overrides.js';
 import { resolveExtends } from '../../../domain/services/resolve-extends.js';
-import type { CatalogPort, WriterPort } from './install.ports.js';
+import type { CatalogPort, WriterPort } from '../../ports/index.js';
 
 export type InstallInput = {
   readonly manifest: ProjectManifest;

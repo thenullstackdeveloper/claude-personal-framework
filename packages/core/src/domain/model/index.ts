@@ -1,4 +1,5 @@
 export { Agent } from './agent.js';
+export type { AgentSummary, CommandSummary, SkillSummary } from './artifact-summary.js';
 export { ArtifactRef } from './artifact-ref.js';
 export { Command } from './command.js';
 export { Composition } from './composition.js';

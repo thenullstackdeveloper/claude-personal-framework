@@ -1,12 +1,18 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { CatalogPort } from '../../application/use-cases/install/install.ports.js';
-import { ArtifactNotFoundError } from '../../domain/errors/domain-error.js';
+import type { CatalogPort } from '../../application/ports/catalog.port.js';
+import { ArtifactNotFoundError, InvalidSlugError } from '../../domain/errors/domain-error.js';
 import { Agent } from '../../domain/model/agent.js';
+import type {
+  AgentSummary,
+  CommandSummary,
+  SkillSummary,
+} from '../../domain/model/artifact-summary.js';
 import { Command } from '../../domain/model/command.js';
-import type { AgentId, CommandId, SkillId } from '../../domain/model/identifiers.js';
+import { AgentId, CommandId, SkillId } from '../../domain/model/identifiers.js';
 import type { Preset } from '../../domain/model/preset.js';
 import { Skill } from '../../domain/model/skill.js';
+import { extractFrontmatterDescription } from '../markdown/frontmatter.js';
 import { parsePreset } from '../yaml/parse-preset.js';
 
 const PRESET_EXT = '.yaml';
@@ -23,6 +29,25 @@ const readArtifactFile = async (path: string, label: string): Promise<string> =>
     if (isErrnoException(err) && err.code === 'ENOENT') {
       throw new ArtifactNotFoundError(`${label} not found at ${path}`);
     }
+    throw err;
+  }
+};
+
+const listMarkdownFiles = async (dir: string): Promise<readonly string[]> => {
+  try {
+    const entries = await readdir(dir);
+    return entries.filter((name) => name.endsWith(ARTIFACT_EXT));
+  } catch (err) {
+    if (isErrnoException(err) && err.code === 'ENOENT') return [];
+    throw err;
+  }
+};
+
+const parseIdOrSkip = <T>(rawId: string, factory: (s: string) => T): T | null => {
+  try {
+    return factory(rawId);
+  } catch (err) {
+    if (err instanceof InvalidSlugError) return null;
     throw err;
   }
 };
@@ -48,6 +73,35 @@ export class CatalogReader implements CatalogPort {
       presets.push(parsePreset(content, name));
     }
     return presets;
+  }
+
+  async listAgents(): Promise<readonly AgentSummary[]> {
+    return this.listArtifactSummaries('agents', (raw) => parseIdOrSkip(raw, AgentId.of));
+  }
+
+  async listSkills(): Promise<readonly SkillSummary[]> {
+    return this.listArtifactSummaries('skills', (raw) => parseIdOrSkip(raw, SkillId.of));
+  }
+
+  async listCommands(): Promise<readonly CommandSummary[]> {
+    return this.listArtifactSummaries('commands', (raw) => parseIdOrSkip(raw, CommandId.of));
+  }
+
+  private async listArtifactSummaries<TId extends { toString(): string }>(
+    subdir: string,
+    factory: (rawId: string) => TId | null,
+  ): Promise<readonly { id: TId; description: string }[]> {
+    const dir = join(this.frameworkRoot, subdir);
+    const files = await listMarkdownFiles(dir);
+    const summaries: { id: TId; description: string }[] = [];
+    for (const file of files) {
+      const rawId = file.slice(0, -ARTIFACT_EXT.length);
+      const id = factory(rawId);
+      if (id === null) continue;
+      const content = await readFile(join(dir, file), 'utf-8');
+      summaries.push({ id, description: extractFrontmatterDescription(content) });
+    }
+    return summaries;
   }
 
   async readAgent(id: AgentId): Promise<Agent> {
