@@ -1,4 +1,3 @@
-import { open } from '@tauri-apps/plugin-dialog';
 import { FolderOpen, FolderSearch, Play, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -7,6 +6,8 @@ type SetupFormProps = {
   readonly projectRoot: string;
   readonly onFrameworkRootChange: (value: string) => void;
   readonly onProjectRootChange: (value: string) => void;
+  readonly onBrowseFramework: () => void;
+  readonly onBrowseProject: () => void;
   readonly onLoadCatalog: () => void;
   readonly onInstall: () => void;
   readonly loadingCatalog: boolean;
@@ -18,6 +19,8 @@ export function SetupForm({
   projectRoot,
   onFrameworkRootChange,
   onProjectRootChange,
+  onBrowseFramework,
+  onBrowseProject,
   onLoadCatalog,
   onInstall,
   loadingCatalog,
@@ -34,17 +37,17 @@ export function SetupForm({
       <div className="space-y-3">
         <PathField
           label="Framework root"
-          hint="Path to the catalog repo (with presets/, agents/, skills/, commands/)."
+          hint="Pick the catalog repo — the folder that contains presets/, agents/, skills/ and commands/."
           value={frameworkRoot}
           onChange={onFrameworkRootChange}
-          browseTitle="Select framework root"
+          onBrowse={onBrowseFramework}
         />
         <PathField
           label="Project root"
-          hint="Target project containing .claude-fw.yaml. Will receive .claude/ output."
+          hint="Pick the target project — the folder that contains a .claude-fw.yaml. The install writes into its .claude/."
           value={projectRoot}
           onChange={onProjectRootChange}
-          browseTitle="Select project root"
+          onBrowse={onBrowseProject}
         />
       </div>
 
@@ -77,20 +80,10 @@ type PathFieldProps = {
   readonly hint: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
-  readonly browseTitle: string;
+  readonly onBrowse: () => void;
 };
 
-function PathField({ label, hint, value, onChange, browseTitle }: PathFieldProps) {
-  const handleBrowse = async () => {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: browseTitle,
-      ...(value && { defaultPath: value }),
-    });
-    if (typeof selected === 'string') onChange(selected);
-  };
-
+function PathField({ label, hint, value, onChange, onBrowse }: PathFieldProps) {
   return (
     <label className="space-y-1 block">
       <span className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
@@ -103,11 +96,12 @@ function PathField({ label, hint, value, onChange, browseTitle }: PathFieldProps
           value={value}
           onChange={(e) => onChange(e.target.value)}
           spellCheck={false}
-          className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm font-mono text-zinc-100 focus:border-violet-500 focus:outline-none transition-colors"
+          placeholder="/path/to/folder"
+          className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm font-mono text-zinc-100 placeholder:text-zinc-700 focus:border-violet-500 focus:outline-none transition-colors"
         />
         <button
           type="button"
-          onClick={handleBrowse}
+          onClick={onBrowse}
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700 transition-colors"
         >
           <FolderOpen className="w-3.5 h-3.5" />

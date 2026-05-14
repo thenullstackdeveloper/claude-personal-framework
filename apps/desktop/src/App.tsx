@@ -1,3 +1,5 @@
+import { ask, open } from '@tauri-apps/plugin-dialog';
+import { Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { CatalogView } from './components/catalog-view';
 import { InstallReport } from './components/install-report';
@@ -5,6 +7,7 @@ import { SetupForm } from './components/setup-form';
 import {
   type CatalogReport,
   type InstallReport as InstallReportData,
+  detectPath,
   install,
   listCatalog,
 } from './lib/api';
@@ -26,6 +29,40 @@ function App() {
   const [installOutcome, setInstallOutcome] = useState<InstallOutcome>({ status: 'idle' });
   const [installing, setInstalling] = useState(false);
 
+  const handleBrowseFramework = async () => {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: 'Select framework root',
+      ...(frameworkRoot && { defaultPath: frameworkRoot }),
+    });
+    if (typeof selected !== 'string') return;
+    setFrameworkRoot(selected);
+
+    // Smart fill: if the selected folder is also a project (has .claude-fw.yaml)
+    // and project root is still empty, suggest it there too. Dogfooding helper.
+    if (!projectRoot) {
+      const detection = await detectPath(selected);
+      if (detection.isProject) setProjectRoot(selected);
+    }
+  };
+
+  const handleBrowseProject = async () => {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: 'Select project root',
+      ...(projectRoot && { defaultPath: projectRoot }),
+    });
+    if (typeof selected !== 'string') return;
+    setProjectRoot(selected);
+
+    if (!frameworkRoot) {
+      const detection = await detectPath(selected);
+      if (detection.isFramework) setFrameworkRoot(selected);
+    }
+  };
+
   const handleLoadCatalog = async () => {
     setLoadingCatalog(true);
     setCatalogError(null);
@@ -41,6 +78,17 @@ function App() {
   };
 
   const handleInstall = async () => {
+    const confirmed = await ask(
+      `Install into ${projectRoot}?\n\nThis replaces .claude/agents, .claude/skills and .claude/commands in that folder.`,
+      {
+        title: 'Confirm install',
+        kind: 'warning',
+        okLabel: 'Install',
+        cancelLabel: 'Cancel',
+      },
+    );
+    if (!confirmed) return;
+
     setInstalling(true);
     setInstallOutcome({ status: 'idle' });
     try {
@@ -54,6 +102,9 @@ function App() {
   };
 
   const dismissInstallOutcome = () => setInstallOutcome({ status: 'idle' });
+
+  const hasAnyPath = frameworkRoot !== '' || projectRoot !== '';
+  const showEmptyState = !hasAnyPath && !catalog && installOutcome.status === 'idle';
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -70,6 +121,8 @@ function App() {
           projectRoot={projectRoot}
           onFrameworkRootChange={setFrameworkRoot}
           onProjectRootChange={setProjectRoot}
+          onBrowseFramework={handleBrowseFramework}
+          onBrowseProject={handleBrowseProject}
           onLoadCatalog={handleLoadCatalog}
           onInstall={handleInstall}
           loadingCatalog={loadingCatalog}
@@ -99,8 +152,23 @@ function App() {
         )}
 
         {catalog && <CatalogView report={catalog} />}
+
+        {showEmptyState && <EmptyState />}
       </div>
     </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <section className="bg-zinc-900/50 border border-dashed border-zinc-800 rounded-lg p-8 text-center space-y-2">
+      <Sparkles className="w-8 h-8 text-zinc-600 mx-auto" />
+      <h2 className="text-sm font-semibold text-zinc-400">No paths configured yet</h2>
+      <p className="text-xs text-zinc-500 max-w-md mx-auto">
+        Pick a framework root and a project root above to load the catalog or install a preset. If
+        you select a folder that is both, the other field is filled automatically.
+      </p>
+    </section>
   );
 }
 

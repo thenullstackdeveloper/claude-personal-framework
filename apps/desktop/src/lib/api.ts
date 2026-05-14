@@ -34,3 +34,12 @@ export const listCatalog = (frameworkRoot: string): Promise<CatalogReport> => {
 export const install = (frameworkRoot: string, projectRoot: string): Promise<InstallReport> => {
   return invoke<InstallReport>('install', { frameworkRoot, projectRoot });
 };
+
+export type PathDetection = {
+  readonly isFramework: boolean;
+  readonly isProject: boolean;
+};
+
+export const detectPath = (path: string): Promise<PathDetection> => {
+  return invoke<PathDetection>('detect_path', { path });
+};

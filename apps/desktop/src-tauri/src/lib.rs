@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use std::process::Command;
 
 #[derive(Serialize, Deserialize)]
@@ -72,6 +73,22 @@ fn list_catalog(framework_root: String) -> Result<CatalogReport, String> {
     serde_json::from_str(&output).map_err(|e| format!("Failed to parse list JSON: {}", e))
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PathDetection {
+    is_framework: bool,
+    is_project: bool,
+}
+
+#[tauri::command]
+fn detect_path(path: String) -> PathDetection {
+    let p = Path::new(&path);
+    PathDetection {
+        is_framework: p.join("presets").is_dir() && p.join("agents").is_dir(),
+        is_project: p.join(".claude-fw.yaml").is_file(),
+    }
+}
+
 #[tauri::command]
 fn install(framework_root: String, project_root: String) -> Result<InstallReport, String> {
     let output = run_cli(&[
@@ -90,7 +107,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![list_catalog, install])
+        .invoke_handler(tauri::generate_handler![list_catalog, install, detect_path])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
