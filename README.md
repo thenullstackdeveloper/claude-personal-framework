@@ -101,25 +101,33 @@ Hexagonal (ports & adapters):
 packages/core/src/
 ├── domain/              ← entities, value objects, domain services
 │   ├── model/           Agent, Skill, Command, Preset, Composition,
-│   │                    ContentHash, Override, Settings, ids
+│   │                    ContentHash, Override, Settings, ids,
+│   │                    artifact-summary
 │   ├── errors/          DomainError + typed subclasses
 │   └── services/        resolveExtends, applyOverrides
 ├── application/         ← use cases + ports
-│   └── use-cases/install/
-│       ├── install.ports.ts      (CatalogPort, WriterPort)
-│       └── install.use-case.ts   (pure orchestration)
+│   ├── ports/           CatalogPort, WriterPort
+│   └── use-cases/
+│       ├── install/         install use case
+│       └── list-catalog/    listCatalog use case
 └── infrastructure/      ← adapters that implement ports
     ├── yaml/            parsePreset, parseProjectManifest
+    ├── markdown/        extractFrontmatterDescription
     └── fs/              CatalogReader, ClaudeWriter
 
 packages/cli/            ← CLI port over the same engine
-└── src/                 install command + arg parsing
+└── src/                 install + list commands, --json flag
+
+apps/desktop/            ← Tauri desktop port over the same engine
+├── src/                 React 19 + Vite + Tailwind 4
+└── src-tauri/           Rust handlers that spawn the CLI as subprocess
 ```
 
 The domain has zero filesystem or framework imports. Adapters depend
-inward on the domain. The CLI is one port over the use case; a Tauri
-desktop app (on the roadmap) is a future second port over the same
-engine.
+inward on the domain. CLI and the desktop app are two independent
+ports over the same use cases — the desktop app does not reimplement
+the engine, it spawns the CLI in a subprocess and consumes its
+structured JSON output.
 
 ## Project layout
 
@@ -133,7 +141,8 @@ engine.
 ├── packages/
 │   ├── core/            Engine: domain + application + infrastructure
 │   └── cli/             CLI port
-├── apps/                (reserved for desktop app)
+├── apps/
+│   └── desktop/         Tauri desktop port (React + Rust)
 ├── docs/
 │   └── adr/             Architecture Decision Records
 ├── .claude/             Output of `claude-fw install` (gitignored)
@@ -145,15 +154,18 @@ engine.
 - ✅ Domain model + composition resolver (extends chains, diamond
   inheritance, cycle detection)
 - ✅ YAML + filesystem adapters
-- ✅ Install use case with content-hashed entities
-- ✅ CLI `claude-fw install`
+- ✅ Install + list-catalog use cases with content-hashed entities
+- ✅ CLI `claude-fw install`, `claude-fw list`, both with `--json`
 - ✅ Self-hosting: this repo's own `.claude/` is materialized by the
   engine
+- ✅ Tauri desktop app (see [apps/desktop/README.md](apps/desktop/README.md))
+- ✅ NestJS preset with `hexagonal-refactor-nestjs` agent, validated
+  on a real client project
 - 🚧 Sync with content lockfile (detect drift, apply updates)
 - 🚧 `overrides:` field in Preset schema (ADR 0001)
 - 🚧 Provider-agnostic `pr-creator` (ADR 0001)
-- 🚧 Tauri desktop app
-- 🚧 Global bin install
+- 🚧 Global bin install (`npm i -g`)
+- 🚧 Sidecar bundling Node + CLI inside the desktop binary
 
 ## Architectural decisions
 
@@ -165,12 +177,16 @@ decision and its consequences.
 
 ```bash
 pnpm install              # install deps
-pnpm -r test              # run tests (141)
+pnpm -r test              # run tests
 pnpm -r build             # type-check + emit dist/
 pnpm lint                 # biome check
 pnpm check                # biome check --write (fix formatting)
 ```
 
+For the desktop app specifically, see
+[apps/desktop/README.md](apps/desktop/README.md) — there is a Linux/Wayland
+environment variable that may be required.
+
 TypeScript strict (`noUncheckedIndexedAccess`,
 `exactOptionalPropertyTypes`, `verbatimModuleSyntax`). Biome for lint
-+ format. Vitest for tests.
++ format. Vitest for tests on the engine.
