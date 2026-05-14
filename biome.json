@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "ignore": ["**/dist", "**/node_modules", "**/coverage"]
+    "ignore": ["**/dist", "**/node_modules", "**/coverage", "**/target", "**/src-tauri/gen"]
   },
   "formatter": {
     "enabled": true,
