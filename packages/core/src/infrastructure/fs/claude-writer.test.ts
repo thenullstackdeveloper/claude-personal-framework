@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -21,7 +21,7 @@ describe('ClaudeWriter', () => {
 
   const claudePath = (...parts: string[]) => join(projectRoot, '.claude', ...parts);
 
-  describe('writeAgent', () => {
+  describe('writeAgent / writeSkill / writeCommand', () => {
     it('creates .claude/agents/ if missing and writes the markdown', async () => {
       const writer = new ClaudeWriter(projectRoot);
       await writer.writeAgent(Agent.of(AgentId.of('docs-manager'), 'agent body'));
@@ -29,16 +29,14 @@ describe('ClaudeWriter', () => {
       expect(content).toBe('agent body');
     });
 
-    it('overwrites an existing agent file', async () => {
+    it('overwrites an existing artifact file', async () => {
       const writer = new ClaudeWriter(projectRoot);
       await writer.writeAgent(Agent.of(AgentId.of('a'), 'v1'));
       await writer.writeAgent(Agent.of(AgentId.of('a'), 'v2'));
       const content = await readFile(claudePath('agents', 'a.md'), 'utf-8');
       expect(content).toBe('v2');
     });
-  });
 
-  describe('writeSkill / writeCommand', () => {
     it('writes a skill to .claude/skills/', async () => {
       const writer = new ClaudeWriter(projectRoot);
       await writer.writeSkill(Skill.of(SkillId.of('hexagonal-rn'), 'skill body'));
@@ -54,35 +52,49 @@ describe('ClaudeWriter', () => {
     });
   });
 
-  describe('cleanArtifacts', () => {
-    it('removes agents/, skills/ and commands/ subdirectories', async () => {
-      await mkdir(claudePath('agents'), { recursive: true });
-      await mkdir(claudePath('skills'), { recursive: true });
-      await mkdir(claudePath('commands'), { recursive: true });
-      await writeFile(claudePath('agents', 'a.md'), 'x');
-      await writeFile(claudePath('skills', 's.md'), 'x');
-      await writeFile(claudePath('commands', 'c.md'), 'x');
-
+  describe('deleteAgent / deleteSkill / deleteCommand', () => {
+    it('removes the agent file by id', async () => {
       const writer = new ClaudeWriter(projectRoot);
-      await writer.cleanArtifacts();
-
-      await expect(readdir(claudePath('agents'))).rejects.toThrow();
-      await expect(readdir(claudePath('skills'))).rejects.toThrow();
-      await expect(readdir(claudePath('commands'))).rejects.toThrow();
+      await writer.writeAgent(Agent.of(AgentId.of('to-delete'), 'x'));
+      await writer.deleteAgent(AgentId.of('to-delete'));
+      await expect(stat(claudePath('agents', 'to-delete.md'))).rejects.toThrow();
     });
 
-    it('is a no-op when nothing exists', async () => {
+    it('is a no-op when the file does not exist (ENOENT swallowed)', async () => {
       const writer = new ClaudeWriter(projectRoot);
-      await expect(writer.cleanArtifacts()).resolves.toBeUndefined();
+      await expect(writer.deleteAgent(AgentId.of('never-was'))).resolves.toBeUndefined();
     });
 
-    it('does not touch other files in .claude/', async () => {
-      await mkdir(claudePath(), { recursive: true });
+    it('does not touch other agents in the same directory', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeAgent(Agent.of(AgentId.of('keep'), 'k'));
+      await writer.writeAgent(Agent.of(AgentId.of('drop'), 'd'));
+      await writer.deleteAgent(AgentId.of('drop'));
+      const kept = await readFile(claudePath('agents', 'keep.md'), 'utf-8');
+      expect(kept).toBe('k');
+    });
+
+    it('deletes a skill', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeSkill(Skill.of(SkillId.of('foo'), 'x'));
+      await writer.deleteSkill(SkillId.of('foo'));
+      await expect(stat(claudePath('skills', 'foo.md'))).rejects.toThrow();
+    });
+
+    it('deletes a command', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeCommand(Command.of(CommandId.of('foo'), 'x'));
+      await writer.deleteCommand(CommandId.of('foo'));
+      await expect(stat(claudePath('commands', 'foo.md'))).rejects.toThrow();
+    });
+
+    it('leaves unrelated files in .claude/ untouched', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeAgent(Agent.of(AgentId.of('a'), 'x'));
       await writeFile(claudePath('settings.local.json'), '{}');
-      const writer = new ClaudeWriter(projectRoot);
-      await writer.cleanArtifacts();
-      const content = await readFile(claudePath('settings.local.json'), 'utf-8');
-      expect(content).toBe('{}');
+      await writer.deleteAgent(AgentId.of('a'));
+      const settings = await readFile(claudePath('settings.local.json'), 'utf-8');
+      expect(settings).toBe('{}');
     });
   });
 });

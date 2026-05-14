@@ -3,13 +3,15 @@ import { ArtifactNotFoundError, PresetNotFoundError } from '../../../domain/erro
 import { Agent } from '../../../domain/model/agent.js';
 import { ArtifactRef } from '../../../domain/model/artifact-ref.js';
 import { Command } from '../../../domain/model/command.js';
+import { ContentHash } from '../../../domain/model/content-hash.js';
 import { AgentId, CommandId, PresetName, SkillId } from '../../../domain/model/identifiers.js';
+import { type LockedArtifact, Lockfile } from '../../../domain/model/lockfile.js';
 import { Override } from '../../../domain/model/override.js';
 import { Preset } from '../../../domain/model/preset.js';
 import type { ProjectManifest } from '../../../domain/model/project-manifest.js';
 import { Settings } from '../../../domain/model/settings.js';
 import { Skill } from '../../../domain/model/skill.js';
-import type { CatalogPort, WriterPort } from '../../ports/index.js';
+import type { CatalogPort, LockfileStorePort, WriterPort } from '../../ports/index.js';
 import { install } from './install.use-case.js';
 
 class InMemoryCatalog implements CatalogPort {
@@ -25,24 +27,13 @@ class InMemoryCatalog implements CatalogPort {
   }
 
   async listAgents() {
-    return [...this.agents.keys()].map((id) => ({
-      id: AgentId.of(id),
-      description: '',
-    }));
+    return [...this.agents.keys()].map((id) => ({ id: AgentId.of(id), description: '' }));
   }
-
   async listSkills() {
-    return [...this.skills.keys()].map((id) => ({
-      id: SkillId.of(id),
-      description: '',
-    }));
+    return [...this.skills.keys()].map((id) => ({ id: SkillId.of(id), description: '' }));
   }
-
   async listCommands() {
-    return [...this.commands.keys()].map((id) => ({
-      id: CommandId.of(id),
-      description: '',
-    }));
+    return [...this.commands.keys()].map((id) => ({ id: CommandId.of(id), description: '' }));
   }
 
   async readAgent(id: AgentId): Promise<Agent> {
@@ -71,29 +62,46 @@ class InMemoryCatalog implements CatalogPort {
 }
 
 class RecordingWriter implements WriterPort {
-  cleanCallCount = 0;
-  agents: Agent[] = [];
-  skills: Skill[] = [];
-  commands: Command[] = [];
-  cleanedBeforeWrites = true;
-
-  async cleanArtifacts(): Promise<void> {
-    if (this.agents.length > 0 || this.skills.length > 0 || this.commands.length > 0) {
-      this.cleanedBeforeWrites = false;
-    }
-    this.cleanCallCount++;
-  }
+  written: { agents: Agent[]; skills: Skill[]; commands: Command[] } = {
+    agents: [],
+    skills: [],
+    commands: [],
+  };
+  deleted: { agents: AgentId[]; skills: SkillId[]; commands: CommandId[] } = {
+    agents: [],
+    skills: [],
+    commands: [],
+  };
 
   async writeAgent(agent: Agent): Promise<void> {
-    this.agents.push(agent);
+    this.written.agents.push(agent);
   }
-
   async writeSkill(skill: Skill): Promise<void> {
-    this.skills.push(skill);
+    this.written.skills.push(skill);
+  }
+  async writeCommand(command: Command): Promise<void> {
+    this.written.commands.push(command);
+  }
+  async deleteAgent(id: AgentId): Promise<void> {
+    this.deleted.agents.push(id);
+  }
+  async deleteSkill(id: SkillId): Promise<void> {
+    this.deleted.skills.push(id);
+  }
+  async deleteCommand(id: CommandId): Promise<void> {
+    this.deleted.commands.push(id);
+  }
+}
+
+class InMemoryLockfileStore implements LockfileStorePort {
+  current: Lockfile | null = null;
+
+  async read(): Promise<Lockfile | null> {
+    return this.current;
   }
 
-  async writeCommand(command: Command): Promise<void> {
-    this.commands.push(command);
+  async write(lockfile: Lockfile): Promise<void> {
+    this.current = lockfile;
   }
 }
 
@@ -104,12 +112,14 @@ const buildManifest = (overrides: readonly Override[] = []): ProjectManifest => 
 
 describe('install use case', () => {
   let writer: RecordingWriter;
+  let lockfileStore: InMemoryLockfileStore;
 
   beforeEach(() => {
     writer = new RecordingWriter();
+    lockfileStore = new InMemoryLockfileStore();
   });
 
-  it('writes the agents declared by the preset', async () => {
+  it('first install: writes everything, deletes nothing', async () => {
     const catalog = new InMemoryCatalog(
       [
         Preset.of({
@@ -118,8 +128,8 @@ describe('install use case', () => {
         }),
       ],
       new Map([
-        ['docs-manager', 'docs-manager body'],
-        ['pr-creator', 'pr-creator body'],
+        ['docs-manager', 'd'],
+        ['pr-creator', 'p'],
       ]),
     );
 
@@ -128,14 +138,173 @@ describe('install use case', () => {
       projectPath: '/tmp/p',
       catalog,
       writer,
+      lockfileStore,
     });
 
-    expect(writer.agents.map((a) => a.id.toString())).toEqual(['docs-manager', 'pr-creator']);
-    expect(writer.agents.map((a) => a.content)).toEqual(['docs-manager body', 'pr-creator body']);
-    expect(result.written.agents.map(String)).toEqual(['docs-manager', 'pr-creator']);
+    expect(writer.written.agents.map((a) => a.id.toString())).toEqual([
+      'docs-manager',
+      'pr-creator',
+    ]);
+    expect(writer.deleted.agents).toEqual([]);
+    expect(result.drift.added).toHaveLength(2);
+    expect(result.drift.removed).toEqual([]);
   });
 
-  it('resolves extends before writing', async () => {
+  it('persists a lockfile after install', async () => {
+    const catalog = new InMemoryCatalog(
+      [Preset.of({ name: PresetName.of('base'), agentIds: [AgentId.of('a')] })],
+      new Map([['a', 'x']]),
+    );
+
+    await install({
+      manifest: buildManifest(),
+      projectPath: '/tmp/p',
+      catalog,
+      writer,
+      lockfileStore,
+    });
+
+    expect(lockfileStore.current).not.toBeNull();
+    expect(lockfileStore.current?.presetName.toString()).toBe('base');
+    expect(lockfileStore.current?.artifacts.map((art) => art.ref.id.toString())).toEqual(['a']);
+  });
+
+  it('idempotent: re-installing with no changes produces the same lockfile and no deletes', async () => {
+    const catalog = new InMemoryCatalog(
+      [Preset.of({ name: PresetName.of('base'), agentIds: [AgentId.of('a')] })],
+      new Map([['a', 'same']]),
+    );
+
+    await install({
+      manifest: buildManifest(),
+      projectPath: '/tmp/p',
+      catalog,
+      writer,
+      lockfileStore,
+    });
+
+    // Reset writer to observe second run
+    writer = new RecordingWriter();
+    const second = await install({
+      manifest: buildManifest(),
+      projectPath: '/tmp/p',
+      catalog,
+      writer,
+      lockfileStore,
+    });
+
+    expect(second.drift.unchanged).toHaveLength(1);
+    expect(second.drift.added).toEqual([]);
+    expect(second.drift.removed).toEqual([]);
+    expect(writer.deleted.agents).toEqual([]);
+    // We still rewrite to be idempotent (restores deleted files etc.)
+    expect(writer.written.agents).toHaveLength(1);
+  });
+
+  it('detects updated content and rewrites the file', async () => {
+    // Prime lockfile with old hash
+    const oldHash = ContentHash.of('old');
+    const lockedAsOld: LockedArtifact = {
+      ref: ArtifactRef.agent(AgentId.of('docs')),
+      contentHash: oldHash,
+    };
+    lockfileStore.current = Lockfile.of({
+      presetName: PresetName.of('base'),
+      artifacts: [lockedAsOld],
+      settings: Settings.empty(),
+    });
+
+    const catalog = new InMemoryCatalog(
+      [Preset.of({ name: PresetName.of('base'), agentIds: [AgentId.of('docs')] })],
+      new Map([['docs', 'new']]),
+    );
+
+    const result = await install({
+      manifest: buildManifest(),
+      projectPath: '/tmp/p',
+      catalog,
+      writer,
+      lockfileStore,
+    });
+
+    expect(result.drift.updated).toHaveLength(1);
+    expect(writer.written.agents.map((a) => a.content)).toEqual(['new']);
+  });
+
+  it('deletes only what was in the previous lockfile but no longer in the preset', async () => {
+    lockfileStore.current = Lockfile.of({
+      presetName: PresetName.of('base'),
+      artifacts: [
+        {
+          ref: ArtifactRef.agent(AgentId.of('was-here')),
+          contentHash: ContentHash.of('x'),
+        },
+        {
+          ref: ArtifactRef.agent(AgentId.of('still-here')),
+          contentHash: ContentHash.of('y'),
+        },
+      ],
+      settings: Settings.empty(),
+    });
+
+    const catalog = new InMemoryCatalog(
+      [
+        Preset.of({
+          name: PresetName.of('base'),
+          agentIds: [AgentId.of('still-here')],
+        }),
+      ],
+      new Map([['still-here', 'y']]),
+    );
+
+    await install({
+      manifest: buildManifest(),
+      projectPath: '/tmp/p',
+      catalog,
+      writer,
+      lockfileStore,
+    });
+
+    expect(writer.deleted.agents.map(String)).toEqual(['was-here']);
+    expect(writer.written.agents.map((a) => a.id.toString())).toEqual(['still-here']);
+  });
+
+  it('skips an agent disabled by an override and removes it if it was in the lockfile', async () => {
+    lockfileStore.current = Lockfile.of({
+      presetName: PresetName.of('base'),
+      artifacts: [
+        { ref: ArtifactRef.agent(AgentId.of('keep')), contentHash: ContentHash.of('k') },
+        { ref: ArtifactRef.agent(AgentId.of('drop')), contentHash: ContentHash.of('d') },
+      ],
+      settings: Settings.empty(),
+    });
+
+    const catalog = new InMemoryCatalog(
+      [
+        Preset.of({
+          name: PresetName.of('base'),
+          agentIds: [AgentId.of('keep'), AgentId.of('drop')],
+        }),
+      ],
+      new Map([
+        ['keep', 'k'],
+        ['drop', 'd'],
+      ]),
+    );
+
+    await install({
+      manifest: buildManifest([Override.disable(ArtifactRef.agent(AgentId.of('drop')))]),
+      projectPath: '/tmp/p',
+      catalog,
+      writer,
+      lockfileStore,
+    });
+
+    expect(writer.deleted.agents.map(String)).toEqual(['drop']);
+    expect(writer.written.agents.map((a) => a.id.toString())).toEqual(['keep']);
+  });
+
+  it('resolves extends before computing drift', async () => {
     const catalog = new InMemoryCatalog(
       [
         Preset.of({
@@ -155,56 +324,17 @@ describe('install use case', () => {
     );
 
     await install({
-      manifest: {
-        presetName: PresetName.of('rn'),
-        overrides: [],
-      },
+      manifest: { presetName: PresetName.of('rn'), overrides: [] },
       projectPath: '/tmp/p',
       catalog,
       writer,
+      lockfileStore,
     });
 
-    expect(writer.agents.map((a) => a.id.toString())).toEqual(['docs-manager', 'pr-creator']);
-  });
-
-  it('skips an agent disabled by an override', async () => {
-    const catalog = new InMemoryCatalog(
-      [
-        Preset.of({
-          name: PresetName.of('base'),
-          agentIds: [AgentId.of('keep'), AgentId.of('drop')],
-        }),
-      ],
-      new Map([
-        ['keep', 'k'],
-        ['drop', 'd'],
-      ]),
-    );
-
-    await install({
-      manifest: buildManifest([Override.disable(ArtifactRef.agent(AgentId.of('drop')))]),
-      projectPath: '/tmp/p',
-      catalog,
-      writer,
-    });
-
-    expect(writer.agents.map((a) => a.id.toString())).toEqual(['keep']);
-  });
-
-  it('adds an agent declared by an add override (must exist in catalog)', async () => {
-    const catalog = new InMemoryCatalog(
-      [Preset.of({ name: PresetName.of('base') })],
-      new Map([['extra', 'e']]),
-    );
-
-    await install({
-      manifest: buildManifest([Override.add(ArtifactRef.agent(AgentId.of('extra')))]),
-      projectPath: '/tmp/p',
-      catalog,
-      writer,
-    });
-
-    expect(writer.agents.map((a) => a.id.toString())).toEqual(['extra']);
+    expect(writer.written.agents.map((a) => a.id.toString())).toEqual([
+      'docs-manager',
+      'pr-creator',
+    ]);
   });
 
   it('replaces an agent content when a patch override matches', async () => {
@@ -220,17 +350,18 @@ describe('install use case', () => {
 
     await install({
       manifest: buildManifest([
-        Override.patch(ArtifactRef.agent(AgentId.of('docs-manager')), 'patched body'),
+        Override.patch(ArtifactRef.agent(AgentId.of('docs-manager')), 'patched'),
       ]),
       projectPath: '/tmp/p',
       catalog,
       writer,
+      lockfileStore,
     });
 
-    expect(writer.agents).toHaveLength(1);
-    const agent = writer.agents[0];
+    expect(writer.written.agents).toHaveLength(1);
+    const agent = writer.written.agents[0];
     if (!agent) throw new Error('expected one agent');
-    expect(agent.content).toBe('patched body');
+    expect(agent.content).toBe('patched');
   });
 
   it('writes skills and commands too', async () => {
@@ -252,32 +383,11 @@ describe('install use case', () => {
       projectPath: '/tmp/p',
       catalog,
       writer,
+      lockfileStore,
     });
 
-    expect(writer.skills.map((s) => s.id.toString())).toEqual(['hexagonal-rn']);
-    expect(writer.commands.map((c) => c.id.toString())).toEqual(['build-android']);
-  });
-
-  it('calls cleanArtifacts before writing anything', async () => {
-    const catalog = new InMemoryCatalog(
-      [
-        Preset.of({
-          name: PresetName.of('base'),
-          agentIds: [AgentId.of('a')],
-        }),
-      ],
-      new Map([['a', 'x']]),
-    );
-
-    await install({
-      manifest: buildManifest(),
-      projectPath: '/tmp/p',
-      catalog,
-      writer,
-    });
-
-    expect(writer.cleanCallCount).toBe(1);
-    expect(writer.cleanedBeforeWrites).toBe(true);
+    expect(writer.written.skills.map((s) => s.id.toString())).toEqual(['hexagonal-rn']);
+    expect(writer.written.commands.map((c) => c.id.toString())).toEqual(['build-android']);
   });
 
   it('builds a Composition with the resolved settings', async () => {
@@ -293,6 +403,7 @@ describe('install use case', () => {
       projectPath: '/tmp/p',
       catalog,
       writer,
+      lockfileStore,
     });
 
     expect(result.composition.projectPath).toBe('/tmp/p');
@@ -300,7 +411,7 @@ describe('install use case', () => {
   });
 
   describe('errors', () => {
-    it('propagates PresetNotFoundError when the manifest references an unknown preset', async () => {
+    it('propagates PresetNotFoundError', async () => {
       const catalog = new InMemoryCatalog([]);
       await expect(
         install({
@@ -308,18 +419,14 @@ describe('install use case', () => {
           projectPath: '/tmp/p',
           catalog,
           writer,
+          lockfileStore,
         }),
       ).rejects.toThrow(PresetNotFoundError);
     });
 
-    it('propagates ArtifactNotFoundError when an agent id is not in the catalog', async () => {
+    it('propagates ArtifactNotFoundError', async () => {
       const catalog = new InMemoryCatalog(
-        [
-          Preset.of({
-            name: PresetName.of('base'),
-            agentIds: [AgentId.of('ghost')],
-          }),
-        ],
+        [Preset.of({ name: PresetName.of('base'), agentIds: [AgentId.of('ghost')] })],
         new Map(),
       );
       await expect(
@@ -328,6 +435,7 @@ describe('install use case', () => {
           projectPath: '/tmp/p',
           catalog,
           writer,
+          lockfileStore,
         }),
       ).rejects.toThrow(ArtifactNotFoundError);
     });

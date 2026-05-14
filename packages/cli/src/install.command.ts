@@ -1,6 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { CatalogReader, ClaudeWriter, install, parseProjectManifest } from '@claude-fw/core';
+import {
+  CatalogReader,
+  ClaudeWriter,
+  LockfileStore,
+  install,
+  parseProjectManifest,
+} from '@claude-fw/core';
 
 const MANIFEST_FILENAME = '.claude-fw.yaml';
 
@@ -23,12 +29,14 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
 
   const catalog = new CatalogReader(args.frameworkRoot);
   const writer = new ClaudeWriter(args.projectRoot);
+  const lockfileStore = new LockfileStore(args.projectRoot);
 
   const result = await install({
     manifest,
     projectPath: args.projectRoot,
     catalog,
     writer,
+    lockfileStore,
   });
 
   return {

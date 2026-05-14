@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "presetName": "base",
+  "artifacts": [
+    {
+      "type": "agent",
+      "id": "hexagonal-architect",
+      "sha": "c9d93565f4ee89796cdc31bafc99f6ef33380478af2207561a1c9700c55ddfc8"
+    },
+    {
+      "type": "agent",
+      "id": "pr-creator",
+      "sha": "7b2f8c9dbce382308ec70ce9e2a13e8a19e03153a2e45325b67a61d98527e78e"
+    }
+  ],
+  "settings": {
+    "permissions": {
+      "allow": [],
+      "deny": []
+    }
+  }
+}
