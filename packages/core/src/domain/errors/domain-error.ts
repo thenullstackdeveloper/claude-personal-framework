@@ -34,3 +34,7 @@ export class InvalidProjectManifestError extends DomainError {
 export class ArtifactNotFoundError extends DomainError {
   readonly code = 'ARTIFACT_NOT_FOUND';
 }
+
+export class InvalidLockfileError extends DomainError {
+  readonly code = 'INVALID_LOCKFILE';
+}

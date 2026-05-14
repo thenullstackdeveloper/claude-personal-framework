@@ -3,6 +3,7 @@ export {
   CyclicExtendsError,
   DomainError,
   InvalidContentHashError,
+  InvalidLockfileError,
   InvalidPresetError,
   InvalidProjectManifestError,
   InvalidSlugError,
