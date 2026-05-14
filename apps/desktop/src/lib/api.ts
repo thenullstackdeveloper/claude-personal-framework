@@ -43,3 +43,28 @@ export type PathDetection = {
 export const detectPath = (path: string): Promise<PathDetection> => {
   return invoke<PathDetection>('detect_path', { path });
 };
+
+export type StatusArtifact = {
+  readonly type: string;
+  readonly id: string;
+};
+
+export type StatusUpdate = {
+  readonly type: string;
+  readonly id: string;
+  readonly oldSha: string;
+  readonly newSha: string;
+};
+
+export type StatusReport = {
+  readonly presetName: string;
+  readonly hasLockfile: boolean;
+  readonly added: readonly StatusArtifact[];
+  readonly updated: readonly StatusUpdate[];
+  readonly removed: readonly StatusArtifact[];
+  readonly unchanged: readonly StatusArtifact[];
+};
+
+export const status = (frameworkRoot: string, projectRoot: string): Promise<StatusReport> => {
+  return invoke<StatusReport>('status', { frameworkRoot, projectRoot });
+};

@@ -1,4 +1,4 @@
-import { FolderOpen, FolderSearch, Play, RefreshCw } from 'lucide-react';
+import { FolderOpen, FolderSearch, GitCompare, Play, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 type SetupFormProps = {
@@ -9,8 +9,10 @@ type SetupFormProps = {
   readonly onBrowseFramework: () => void;
   readonly onBrowseProject: () => void;
   readonly onLoadCatalog: () => void;
+  readonly onCheckStatus: () => void;
   readonly onInstall: () => void;
   readonly loadingCatalog: boolean;
+  readonly checkingStatus: boolean;
   readonly installing: boolean;
 };
 
@@ -22,13 +24,16 @@ export function SetupForm({
   onBrowseFramework,
   onBrowseProject,
   onLoadCatalog,
+  onCheckStatus,
   onInstall,
   loadingCatalog,
+  checkingStatus,
   installing,
 }: SetupFormProps) {
-  const canInstall =
-    !installing && !loadingCatalog && frameworkRoot.trim() !== '' && projectRoot.trim() !== '';
-  const canLoad = !installing && !loadingCatalog && frameworkRoot.trim() !== '';
+  const busy = installing || loadingCatalog || checkingStatus;
+  const canInstall = !busy && frameworkRoot.trim() !== '' && projectRoot.trim() !== '';
+  const canLoad = !busy && frameworkRoot.trim() !== '';
+  const canStatus = !busy && frameworkRoot.trim() !== '' && projectRoot.trim() !== '';
 
   return (
     <section className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 space-y-4">
@@ -51,7 +56,7 @@ export function SetupForm({
         />
       </div>
 
-      <div className="flex gap-2 pt-1">
+      <div className="flex flex-wrap gap-2 pt-1">
         <button
           type="button"
           onClick={onLoadCatalog}
@@ -60,6 +65,15 @@ export function SetupForm({
         >
           <RefreshCw className={cn('w-4 h-4', loadingCatalog && 'animate-spin')} />
           {loadingCatalog ? 'Loading…' : 'Load catalog'}
+        </button>
+        <button
+          type="button"
+          onClick={onCheckStatus}
+          disabled={!canStatus}
+          className={buttonClass('secondary', !canStatus)}
+        >
+          <GitCompare className={cn('w-4 h-4', checkingStatus && 'animate-spin')} />
+          {checkingStatus ? 'Checking…' : 'Check status'}
         </button>
         <button
           type="button"
