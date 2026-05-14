@@ -2,6 +2,7 @@
 
 import { formatInstallReport, formatInstallReportJson, runInstall } from './install.command.js';
 import { formatListReport, formatListReportJson, runList } from './list.command.js';
+import { formatStatusReport, formatStatusReportJson, runStatus } from './status.command.js';
 
 type ParsedArgs = {
   readonly command: string;
@@ -40,6 +41,7 @@ const printHelp = (): void => {
     'Commands:',
     '  install     Materialize the configured preset into .claude/ of the project',
     '  list        List presets, agents, skills and commands in the catalog',
+    '  status      Show drift between the catalog and the last install',
     '  help        Show this help',
     '',
     'Options:',
@@ -76,6 +78,16 @@ const main = async (): Promise<void> => {
   if (command === 'list') {
     const report = await runList({ frameworkRoot: resolveFrameworkRoot(framework) });
     const output = json ? formatListReportJson(report) : formatListReport(report);
+    process.stdout.write(`${output}\n`);
+    return;
+  }
+
+  if (command === 'status') {
+    const report = await runStatus({
+      frameworkRoot: resolveFrameworkRoot(framework),
+      projectRoot: project ?? process.cwd(),
+    });
+    const output = json ? formatStatusReportJson(report) : formatStatusReport(report);
     process.stdout.write(`${output}\n`);
     return;
   }

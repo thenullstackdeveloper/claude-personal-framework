@@ -1,16 +1,12 @@
-import { Agent } from '../../../domain/model/agent.js';
 import { ArtifactRef } from '../../../domain/model/artifact-ref.js';
-import { Command } from '../../../domain/model/command.js';
-import { Composition } from '../../../domain/model/composition.js';
+import type { Composition } from '../../../domain/model/composition.js';
 import type { DriftReport } from '../../../domain/model/drift-report.js';
 import type { AgentId, CommandId, SkillId } from '../../../domain/model/identifiers.js';
 import { Lockfile } from '../../../domain/model/lockfile.js';
 import type { ProjectManifest } from '../../../domain/model/project-manifest.js';
-import { Skill } from '../../../domain/model/skill.js';
-import { type Patch, applyOverrides } from '../../../domain/services/apply-overrides.js';
 import { computeDrift } from '../../../domain/services/compute-drift.js';
-import { resolveExtends } from '../../../domain/services/resolve-extends.js';
 import type { CatalogPort, LockfileStorePort, WriterPort } from '../../ports/index.js';
+import { buildComposition } from '../../services/build-composition.js';
 
 export type InstallInput = {
   readonly manifest: ProjectManifest;
@@ -30,45 +26,10 @@ export type InstallResult = {
   };
 };
 
-const patchAgent = (agent: Agent, patches: readonly Patch[]): Agent => {
-  const patch = patches.find((p) => p.target.type === 'agent' && p.target.id.equals(agent.id));
-  return patch ? Agent.of(agent.id, patch.content) : agent;
-};
-
-const patchSkill = (skill: Skill, patches: readonly Patch[]): Skill => {
-  const patch = patches.find((p) => p.target.type === 'skill' && p.target.id.equals(skill.id));
-  return patch ? Skill.of(skill.id, patch.content) : skill;
-};
-
-const patchCommand = (command: Command, patches: readonly Patch[]): Command => {
-  const patch = patches.find((p) => p.target.type === 'command' && p.target.id.equals(command.id));
-  return patch ? Command.of(command.id, patch.content) : command;
-};
-
 export const install = async (input: InstallInput): Promise<InstallResult> => {
   const { manifest, projectPath, catalog, writer, lockfileStore } = input;
 
-  const presets = await catalog.listPresets();
-  const resolved = resolveExtends(presets, manifest.presetName);
-  const { preset, patches } = applyOverrides(resolved, manifest.overrides);
-
-  const [rawAgents, rawSkills, rawCommands] = await Promise.all([
-    Promise.all(preset.agentIds.map((id) => catalog.readAgent(id))),
-    Promise.all(preset.skillIds.map((id) => catalog.readSkill(id))),
-    Promise.all(preset.commandIds.map((id) => catalog.readCommand(id))),
-  ]);
-
-  const agents = rawAgents.map((a) => patchAgent(a, patches));
-  const skills = rawSkills.map((s) => patchSkill(s, patches));
-  const commands = rawCommands.map((c) => patchCommand(c, patches));
-
-  const composition = Composition.of({
-    projectPath,
-    agents,
-    skills,
-    commands,
-    settings: preset.settings,
-  });
+  const composition = await buildComposition({ manifest, projectPath, catalog });
 
   const previousLockfile = await lockfileStore.read();
   const drift = computeDrift(previousLockfile, composition);
@@ -86,28 +47,28 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
   // Write all current artifacts. Idempotent — if a file was deleted manually,
   // it gets restored. If unchanged, it gets overwritten with identical content.
   await Promise.all([
-    ...agents.map((a) => writer.writeAgent(a)),
-    ...skills.map((s) => writer.writeSkill(s)),
-    ...commands.map((c) => writer.writeCommand(c)),
+    ...composition.agents.map((a) => writer.writeAgent(a)),
+    ...composition.skills.map((s) => writer.writeSkill(s)),
+    ...composition.commands.map((c) => writer.writeCommand(c)),
   ]);
 
   const nextLockfile = Lockfile.of({
     presetName: manifest.presetName,
     artifacts: [
-      ...agents.map((a) => ({
+      ...composition.agents.map((a) => ({
         ref: ArtifactRef.agent(a.id),
         contentHash: a.contentHash,
       })),
-      ...skills.map((s) => ({
+      ...composition.skills.map((s) => ({
         ref: ArtifactRef.skill(s.id),
         contentHash: s.contentHash,
       })),
-      ...commands.map((c) => ({
+      ...composition.commands.map((c) => ({
         ref: ArtifactRef.command(c.id),
         contentHash: c.contentHash,
       })),
     ],
-    settings: preset.settings,
+    settings: composition.settings,
   });
   await lockfileStore.write(nextLockfile);
 
@@ -115,9 +76,9 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
     composition,
     drift,
     written: {
-      agents: agents.map((a) => a.id),
-      skills: skills.map((s) => s.id),
-      commands: commands.map((c) => c.id),
+      agents: composition.agents.map((a) => a.id),
+      skills: composition.skills.map((s) => s.id),
+      commands: composition.commands.map((c) => c.id),
     },
   };
 };
