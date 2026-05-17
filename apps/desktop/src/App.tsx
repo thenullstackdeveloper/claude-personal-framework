@@ -46,9 +46,14 @@ function App() {
     if (typeof selected !== 'string') return;
     setFrameworkRoot(selected);
 
+    // Smart fill is best-effort: if detection fails, just skip it.
     if (!projectRoot) {
-      const detection = await detectPath(selected);
-      if (detection.isProject) setProjectRoot(selected);
+      try {
+        const detection = await detectPath(selected);
+        if (detection.isProject) setProjectRoot(selected);
+      } catch {
+        // ignore — detection is a convenience, not required
+      }
     }
   };
 
@@ -62,9 +67,14 @@ function App() {
     if (typeof selected !== 'string') return;
     setProjectRoot(selected);
 
+    // Smart fill is best-effort: if detection fails, just skip it.
     if (!frameworkRoot) {
-      const detection = await detectPath(selected);
-      if (detection.isFramework) setFrameworkRoot(selected);
+      try {
+        const detection = await detectPath(selected);
+        if (detection.isFramework) setFrameworkRoot(selected);
+      } catch {
+        // ignore — detection is a convenience, not required
+      }
     }
   };
 

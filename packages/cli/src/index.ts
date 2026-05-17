@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+import {
+  type DetectCommandReport,
+  formatDetectReport,
+  formatDetectReportJson,
+  runDetect,
+} from './detect.command.js';
 import { formatInstallReport, formatInstallReportJson, runInstall } from './install.command.js';
 import { formatListReport, formatListReportJson, runList } from './list.command.js';
 import { formatStatusReport, formatStatusReportJson, runStatus } from './status.command.js';
@@ -8,6 +14,7 @@ type ParsedArgs = {
   readonly command: string;
   readonly framework: string | undefined;
   readonly project: string | undefined;
+  readonly path: string | undefined;
   readonly json: boolean;
 };
 
@@ -15,6 +22,7 @@ const parseArgs = (argv: readonly string[]): ParsedArgs => {
   let command = '';
   let framework: string | undefined;
   let project: string | undefined;
+  let path: string | undefined;
   let json = false;
 
   for (let i = 0; i < argv.length; i++) {
@@ -24,6 +32,8 @@ const parseArgs = (argv: readonly string[]): ParsedArgs => {
       framework = argv[++i];
     } else if (arg === '--project') {
       project = argv[++i];
+    } else if (arg === '--path') {
+      path = argv[++i];
     } else if (arg === '--json') {
       json = true;
     } else if (!arg.startsWith('--') && !command) {
@@ -31,7 +41,7 @@ const parseArgs = (argv: readonly string[]): ParsedArgs => {
     }
   }
 
-  return { command, framework, project, json };
+  return { command, framework, project, path, json };
 };
 
 const printHelp = (): void => {
@@ -42,12 +52,14 @@ const printHelp = (): void => {
     '  install     Materialize the configured preset into .claude/ of the project',
     '  list        List presets, agents, skills and commands in the catalog',
     '  status      Show drift between the catalog and the last install',
+    '  detect      Report whether a path is a framework root and/or a project root',
     '  help        Show this help',
     '',
     'Options:',
     '  --framework <path>   Framework catalog root (default: $CLAUDE_FW_ROOT or cwd)',
     '  --project <path>     Project root holding .claude-fw.yaml (default: cwd)',
-    '                       — only used by install',
+    '                       — only used by install and status',
+    '  --path <path>        Path to inspect — only used by detect',
     '  --json               Emit machine-readable JSON output instead of human text',
   ];
   process.stdout.write(`${lines.join('\n')}\n`);
@@ -58,7 +70,7 @@ const resolveFrameworkRoot = (override: string | undefined): string => {
 };
 
 const main = async (): Promise<void> => {
-  const { command, framework, project, json } = parseArgs(process.argv.slice(2));
+  const { command, framework, project, path, json } = parseArgs(process.argv.slice(2));
 
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     printHelp();
@@ -88,6 +100,13 @@ const main = async (): Promise<void> => {
       projectRoot: project ?? process.cwd(),
     });
     const output = json ? formatStatusReportJson(report) : formatStatusReport(report);
+    process.stdout.write(`${output}\n`);
+    return;
+  }
+
+  if (command === 'detect') {
+    const report: DetectCommandReport = await runDetect({ path: path ?? process.cwd() });
+    const output = json ? formatDetectReportJson(report) : formatDetectReport(report);
     process.stdout.write(`${output}\n`);
     return;
   }

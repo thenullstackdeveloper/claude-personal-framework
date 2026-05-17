@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use std::process::Command;
 
 #[derive(Serialize, Deserialize)]
@@ -73,20 +72,20 @@ fn list_catalog(framework_root: String) -> Result<CatalogReport, String> {
     serde_json::from_str(&output).map_err(|e| format!("Failed to parse list JSON: {}", e))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PathDetection {
     is_framework: bool,
     is_project: bool,
 }
 
+// The rule for what makes a path a framework root or a project root lives in
+// the engine (detect-path use case). Rust must not re-derive it — it asks the
+// CLI, same as every other command.
 #[tauri::command]
-fn detect_path(path: String) -> PathDetection {
-    let p = Path::new(&path);
-    PathDetection {
-        is_framework: p.join("presets").is_dir() && p.join("agents").is_dir(),
-        is_project: p.join(".claude-fw.yaml").is_file(),
-    }
+fn detect_path(path: String) -> Result<PathDetection, String> {
+    let output = run_cli(&["detect", "--path", &path, "--json"])?;
+    serde_json::from_str(&output).map_err(|e| format!("Failed to parse detect JSON: {}", e))
 }
 
 #[tauri::command]
