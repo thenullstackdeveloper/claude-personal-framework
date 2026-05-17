@@ -68,6 +68,21 @@ overrides:
       Custom body…
 ```
 
+### Idempotent installs and drift
+
+Every `install` writes a lockfile — `.claude-fw.lock.json` — recording
+the content hash of each materialized artifact. The next `install`
+compares the catalog against that lockfile and applies only the
+difference: new artifacts are written, changed ones updated, and
+artifacts dropped from the preset are deleted. Files you placed in
+`.claude/` by hand are never touched — the engine only manages what the
+lockfile tracks. Re-running `install` is therefore safe and idempotent;
+a file deleted by accident gets restored.
+
+`claude-fw status` reports that same diff (added / updated / removed /
+unchanged) **without writing anything** — useful before pulling a newer
+version of the catalog into a project.
+
 ## Quick start
 
 Inside this repo:
@@ -91,6 +106,10 @@ CLAUDE_FW_ROOT=/path/to/claude-personal-framework \
   node /path/to/claude-personal-framework/packages/cli/dist/index.js install
 ```
 
+Commands: `install` materializes the preset, `list` enumerates the
+catalog, `status` shows drift against the last install. All three
+accept `--json` for programmatic consumers (the desktop app uses it).
+
 (A global bin install is on the roadmap; for now invoke via `node`.)
 
 ## Architecture
@@ -102,21 +121,24 @@ packages/core/src/
 ├── domain/              ← entities, value objects, domain services
 │   ├── model/           Agent, Skill, Command, Preset, Composition,
 │   │                    ContentHash, Override, Settings, ids,
-│   │                    artifact-summary
+│   │                    artifact-summary, Lockfile, DriftReport
 │   ├── errors/          DomainError + typed subclasses
-│   └── services/        resolveExtends, applyOverrides
-├── application/         ← use cases + ports
-│   ├── ports/           CatalogPort, WriterPort
+│   └── services/        resolveExtends, applyOverrides, computeDrift
+├── application/         ← use cases + ports + shared services
+│   ├── ports/           CatalogPort, WriterPort, LockfileStorePort
+│   ├── services/        buildComposition (shared by install + status)
 │   └── use-cases/
-│       ├── install/         install use case
-│       └── list-catalog/    listCatalog use case
+│       ├── install/         install use case (drift-aware)
+│       ├── list-catalog/    listCatalog use case
+│       └── check-status/    checkStatus use case (read-only)
 └── infrastructure/      ← adapters that implement ports
     ├── yaml/            parsePreset, parseProjectManifest
+    ├── json/            parseLockfile, serializeLockfile
     ├── markdown/        extractFrontmatterDescription
-    └── fs/              CatalogReader, ClaudeWriter
+    └── fs/              CatalogReader, ClaudeWriter, LockfileStore
 
 packages/cli/            ← CLI port over the same engine
-└── src/                 install + list commands, --json flag
+└── src/                 install + list + status commands, --json flag
 
 apps/desktop/            ← Tauri desktop port over the same engine
 ├── src/                 React 19 + Vite + Tailwind 4
@@ -134,10 +156,11 @@ structured JSON output.
 ```
 .
 ├── agents/              Catalog: source of truth for agents
-├── skills/              (empty for now)
+├── skills/              Catalog: nestjs-hexagonal-patterns
 ├── commands/            (empty for now)
 ├── presets/             Catalog: preset YAMLs
-│   └── base.yaml
+│   ├── base.yaml
+│   └── nestjs.yaml
 ├── packages/
 │   ├── core/            Engine: domain + application + infrastructure
 │   └── cli/             CLI port
@@ -146,22 +169,26 @@ structured JSON output.
 ├── docs/
 │   └── adr/             Architecture Decision Records
 ├── .claude/             Output of `claude-fw install` (gitignored)
-└── .claude-fw.yaml      Project manifest (this repo configures itself)
+├── .claude-fw.yaml      Project manifest (this repo configures itself)
+└── .claude-fw.lock.json Lockfile: content hashes of the last install
 ```
 
 ## Status
 
 - ✅ Domain model + composition resolver (extends chains, diamond
   inheritance, cycle detection)
-- ✅ YAML + filesystem adapters
-- ✅ Install + list-catalog use cases with content-hashed entities
-- ✅ CLI `claude-fw install`, `claude-fw list`, both with `--json`
+- ✅ YAML + JSON + filesystem adapters
+- ✅ Install / list-catalog / check-status use cases with
+  content-hashed entities
+- ✅ CLI `claude-fw install`, `list`, `status`, all with `--json`
+- ✅ Lockfile-based drift: idempotent installs, `status` reports
+  added / updated / removed / unchanged without writing
 - ✅ Self-hosting: this repo's own `.claude/` is materialized by the
   engine
-- ✅ Tauri desktop app (see [apps/desktop/README.md](apps/desktop/README.md))
+- ✅ Tauri desktop app with catalog browser and drift view
+  (see [apps/desktop/README.md](apps/desktop/README.md))
 - ✅ NestJS preset with `hexagonal-refactor-nestjs` agent, validated
   on a real client project
-- 🚧 Sync with content lockfile (detect drift, apply updates)
 - 🚧 `overrides:` field in Preset schema (ADR 0001)
 - 🚧 Provider-agnostic `pr-creator` (ADR 0001)
 - 🚧 Global bin install (`npm i -g`)
