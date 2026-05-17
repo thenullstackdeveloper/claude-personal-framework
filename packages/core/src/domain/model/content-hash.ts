@@ -1,3 +1,6 @@
+// The only node:* import in the domain layer. SHA-256 is a pure,
+// deterministic primitive (no I/O) — keeping it here instead of behind a
+// HashPort is a deliberate trade-off. See docs/adr/0002-node-crypto-in-domain.md
 import { createHash } from 'node:crypto';
 import { InvalidContentHashError } from '../errors/domain-error.js';
 

@@ -44,3 +44,4 @@ in, and what it leaves open.
 ## Index
 
 - [0001 — pr-creator provider coupling](0001-pr-creator-provider-coupling.md) — *deferred*
+- [0002 — node:crypto in the domain layer](0002-node-crypto-in-domain.md) — *accepted*
