@@ -1,14 +1,10 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import {
   CatalogReader,
   ClaudeWriter,
+  FsManifestStore,
   LockfileStore,
   install,
-  parseProjectManifest,
 } from '@claude-fw/core';
-
-const MANIFEST_FILENAME = '.claude-fw.yaml';
 
 export type InstallCommandArgs = {
   readonly frameworkRoot: string;
@@ -23,9 +19,13 @@ export type InstallCommandReport = {
 };
 
 export const runInstall = async (args: InstallCommandArgs): Promise<InstallCommandReport> => {
-  const manifestPath = join(args.projectRoot, MANIFEST_FILENAME);
-  const manifestYaml = await readFile(manifestPath, 'utf-8');
-  const manifest = parseProjectManifest(manifestYaml);
+  const manifestStore = new FsManifestStore(args.projectRoot);
+  const manifest = await manifestStore.read();
+  if (manifest === null) {
+    throw new Error(
+      `No .claude-fw.yaml found at ${args.projectRoot}. Run 'claude-fw init --preset <name>' first to create one.`,
+    );
+  }
 
   const catalog = new CatalogReader(args.frameworkRoot);
   const writer = new ClaudeWriter(args.projectRoot);

@@ -1,8 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { CatalogReader, LockfileStore, checkStatus, parseProjectManifest } from '@claude-fw/core';
-
-const MANIFEST_FILENAME = '.claude-fw.yaml';
+import { CatalogReader, FsManifestStore, LockfileStore, checkStatus } from '@claude-fw/core';
 
 export type StatusCommandArgs = {
   readonly frameworkRoot: string;
@@ -31,8 +27,13 @@ export type StatusCommandReport = {
 };
 
 export const runStatus = async (args: StatusCommandArgs): Promise<StatusCommandReport> => {
-  const manifestYaml = await readFile(join(args.projectRoot, MANIFEST_FILENAME), 'utf-8');
-  const manifest = parseProjectManifest(manifestYaml);
+  const manifestStore = new FsManifestStore(args.projectRoot);
+  const manifest = await manifestStore.read();
+  if (manifest === null) {
+    throw new Error(
+      `No .claude-fw.yaml found at ${args.projectRoot}. Run 'claude-fw init --preset <name>' first to create one.`,
+    );
+  }
 
   const catalog = new CatalogReader(args.frameworkRoot);
   const lockfileStore = new LockfileStore(args.projectRoot);

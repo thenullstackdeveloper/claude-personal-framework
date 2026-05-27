@@ -88,7 +88,7 @@ overrides:
 
   it('throws a useful error when the manifest is missing', async () => {
     await expect(runInstall({ frameworkRoot: framework, projectRoot: project })).rejects.toThrow(
-      /ENOENT|no such file/,
+      /No \.claude-fw\.yaml found.+claude-fw init/,
     );
   });
 });
