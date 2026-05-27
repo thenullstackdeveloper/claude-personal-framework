@@ -112,6 +112,19 @@ accept `--json` for programmatic consumers (the desktop app uses it).
 
 (A global bin install is on the roadmap; for now invoke via `node`.)
 
+### Run the desktop app
+
+```bash
+pnpm install
+pnpm -r build
+pnpm -C apps/desktop tauri:dev
+```
+
+On Linux/Wayland prepend `WEBKIT_DISABLE_DMABUF_RENDERER=1` if the
+window fails to open with a GDK protocol error. See
+[apps/desktop/README.md](apps/desktop/README.md) for the full setup
+(stack, IPC bridge, other gotchas).
+
 ## Architecture
 
 Hexagonal (ports & adapters):
