@@ -6,6 +6,7 @@ import {
   formatDetectReportJson,
   runDetect,
 } from './detect.command.js';
+import { formatInitReport, formatInitReportJson, runInit } from './init.command.js';
 import { formatInstallReport, formatInstallReportJson, runInstall } from './install.command.js';
 import { formatListReport, formatListReportJson, runList } from './list.command.js';
 import { formatStatusReport, formatStatusReportJson, runStatus } from './status.command.js';
@@ -15,6 +16,7 @@ type ParsedArgs = {
   readonly framework: string | undefined;
   readonly project: string | undefined;
   readonly path: string | undefined;
+  readonly preset: string | undefined;
   readonly json: boolean;
 };
 
@@ -23,6 +25,7 @@ const parseArgs = (argv: readonly string[]): ParsedArgs => {
   let framework: string | undefined;
   let project: string | undefined;
   let path: string | undefined;
+  let preset: string | undefined;
   let json = false;
 
   for (let i = 0; i < argv.length; i++) {
@@ -34,6 +37,8 @@ const parseArgs = (argv: readonly string[]): ParsedArgs => {
       project = argv[++i];
     } else if (arg === '--path') {
       path = argv[++i];
+    } else if (arg === '--preset') {
+      preset = argv[++i];
     } else if (arg === '--json') {
       json = true;
     } else if (!arg.startsWith('--') && !command) {
@@ -41,7 +46,7 @@ const parseArgs = (argv: readonly string[]): ParsedArgs => {
     }
   }
 
-  return { command, framework, project, path, json };
+  return { command, framework, project, path, preset, json };
 };
 
 const printHelp = (): void => {
@@ -49,6 +54,7 @@ const printHelp = (): void => {
     'Usage: claude-fw <command> [options]',
     '',
     'Commands:',
+    '  init        Create .claude-fw.yaml in the project pointing at a preset',
     '  install     Materialize the configured preset into .claude/ of the project',
     '  list        List presets, agents, skills and commands in the catalog',
     '  status      Show drift between the catalog and the last install',
@@ -57,8 +63,8 @@ const printHelp = (): void => {
     '',
     'Options:',
     '  --framework <path>   Framework catalog root (default: $CLAUDE_FW_ROOT or cwd)',
-    '  --project <path>     Project root holding .claude-fw.yaml (default: cwd)',
-    '                       — only used by install and status',
+    '  --project <path>     Project root (default: cwd) — used by init, install, status',
+    '  --preset <name>      Preset to use — required by init',
     '  --path <path>        Path to inspect — only used by detect',
     '  --json               Emit machine-readable JSON output instead of human text',
   ];
@@ -70,10 +76,27 @@ const resolveFrameworkRoot = (override: string | undefined): string => {
 };
 
 const main = async (): Promise<void> => {
-  const { command, framework, project, path, json } = parseArgs(process.argv.slice(2));
+  const { command, framework, project, path, preset, json } = parseArgs(process.argv.slice(2));
 
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     printHelp();
+    return;
+  }
+
+  if (command === 'init') {
+    if (!preset) {
+      process.stderr.write(
+        "Error: 'init' requires --preset <name>. Run 'claude-fw list' to see the available presets.\n",
+      );
+      process.exit(1);
+    }
+    const report = await runInit({
+      frameworkRoot: resolveFrameworkRoot(framework),
+      projectRoot: project ?? process.cwd(),
+      presetName: preset,
+    });
+    const output = json ? formatInitReportJson(report) : formatInitReport(report);
+    process.stdout.write(`${output}\n`);
     return;
   }
 
