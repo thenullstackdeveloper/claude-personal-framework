@@ -3,10 +3,12 @@ import type { Agent } from '../../../domain/model/agent.js';
 import type {
   AgentSummary,
   CommandSummary,
+  InstructionsSummary,
   SkillSummary,
 } from '../../../domain/model/artifact-summary.js';
 import type { Command } from '../../../domain/model/command.js';
 import { AgentId, CommandId, PresetName, SkillId } from '../../../domain/model/identifiers.js';
+import type { Instructions } from '../../../domain/model/instructions.js';
 import { Preset } from '../../../domain/model/preset.js';
 import type { Skill } from '../../../domain/model/skill.js';
 import type { CatalogPort } from '../../ports/index.js';
@@ -18,6 +20,7 @@ class StubCatalog implements CatalogPort {
     private readonly agents: readonly AgentSummary[],
     private readonly skills: readonly SkillSummary[],
     private readonly commands: readonly CommandSummary[],
+    private readonly instructions: readonly InstructionsSummary[] = [],
   ) {}
 
   async listPresets(): Promise<readonly Preset[]> {
@@ -32,6 +35,9 @@ class StubCatalog implements CatalogPort {
   async listCommands(): Promise<readonly CommandSummary[]> {
     return this.commands;
   }
+  async listInstructions(): Promise<readonly InstructionsSummary[]> {
+    return this.instructions;
+  }
   async readAgent(): Promise<Agent> {
     throw new Error('not used in listCatalog tests');
   }
@@ -39,6 +45,9 @@ class StubCatalog implements CatalogPort {
     throw new Error('not used in listCatalog tests');
   }
   async readCommand(): Promise<Command> {
+    throw new Error('not used in listCatalog tests');
+  }
+  async readInstructions(): Promise<Instructions> {
     throw new Error('not used in listCatalog tests');
   }
 }
@@ -86,12 +95,14 @@ describe('listCatalog use case', () => {
       listAgents: () => slowList<AgentSummary>([]),
       listSkills: () => slowList<SkillSummary>([]),
       listCommands: () => slowList<CommandSummary>([]),
+      listInstructions: () => slowList<InstructionsSummary>([]),
       readAgent: () => Promise.reject(new Error('unused')),
       readSkill: () => Promise.reject(new Error('unused')),
       readCommand: () => Promise.reject(new Error('unused')),
+      readInstructions: () => Promise.reject(new Error('unused')),
     };
 
     await listCatalog({ catalog });
-    expect(maxConcurrent).toBe(4);
+    expect(maxConcurrent).toBe(5);
   });
 });

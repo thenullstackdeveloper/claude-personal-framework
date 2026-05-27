@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { InvalidSlugError } from '../errors/domain-error.js';
-import { AgentId, CommandId, PresetName, SkillId } from './identifiers.js';
+import { AgentId, CommandId, InstructionsId, PresetName, SkillId } from './identifiers.js';
 
 describe('Slug-based identifiers', () => {
   describe('valid slugs', () => {
@@ -46,14 +46,17 @@ describe('Slug-based identifiers', () => {
       const skill = SkillId.of('foo');
       const command = CommandId.of('foo');
       const preset = PresetName.of('foo');
+      const instructions = InstructionsId.of('foo');
 
       expect(agent).toBeInstanceOf(AgentId);
       expect(skill).toBeInstanceOf(SkillId);
       expect(command).toBeInstanceOf(CommandId);
       expect(preset).toBeInstanceOf(PresetName);
+      expect(instructions).toBeInstanceOf(InstructionsId);
 
       expect(agent).not.toBeInstanceOf(SkillId);
       expect(skill).not.toBeInstanceOf(CommandId);
+      expect(instructions).not.toBeInstanceOf(AgentId);
     });
   });
 });

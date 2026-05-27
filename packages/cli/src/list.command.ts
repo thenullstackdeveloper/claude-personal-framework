@@ -10,6 +10,7 @@ export type ListCommandPreset = {
   readonly agents: readonly string[];
   readonly skills: readonly string[];
   readonly commands: readonly string[];
+  readonly instructions: readonly string[];
 };
 
 export type ListCommandArtifact = {
@@ -22,6 +23,7 @@ export type ListCommandReport = {
   readonly agents: readonly ListCommandArtifact[];
   readonly skills: readonly ListCommandArtifact[];
   readonly commands: readonly ListCommandArtifact[];
+  readonly instructions: readonly ListCommandArtifact[];
 };
 
 export const runList = async (args: ListCommandArgs): Promise<ListCommandReport> => {
@@ -35,6 +37,7 @@ export const runList = async (args: ListCommandArgs): Promise<ListCommandReport>
       agents: p.agentIds.map(String),
       skills: p.skillIds.map(String),
       commands: p.commandIds.map(String),
+      instructions: p.instructionsIds.map(String),
     })),
     agents: result.agents.map((a) => ({
       id: a.id.toString(),
@@ -47,6 +50,10 @@ export const runList = async (args: ListCommandArgs): Promise<ListCommandReport>
     commands: result.commands.map((c) => ({
       id: c.id.toString(),
       description: c.description,
+    })),
+    instructions: result.instructions.map((i) => ({
+      id: i.id.toString(),
+      description: i.description,
     })),
   };
 };
@@ -76,6 +83,9 @@ export const formatListReport = (report: ListCommandReport): string => {
       if (preset.agents.length > 0) counts.push(`${preset.agents.length} agents`);
       if (preset.skills.length > 0) counts.push(`${preset.skills.length} skills`);
       if (preset.commands.length > 0) counts.push(`${preset.commands.length} commands`);
+      if (preset.instructions.length > 0) {
+        counts.push(`${preset.instructions.length} instructions`);
+      }
       const summary = counts.length > 0 ? `: ${counts.join(', ')}` : '';
       lines.push(`  - ${preset.name}${extendsPart}${summary}`);
     }
@@ -84,12 +94,14 @@ export const formatListReport = (report: ListCommandReport): string => {
   renderArtifactList('Agents', report.agents, lines);
   renderArtifactList('Skills', report.skills, lines);
   renderArtifactList('Commands', report.commands, lines);
+  renderArtifactList('Instructions', report.instructions, lines);
 
   if (
     report.presets.length === 0 &&
     report.agents.length === 0 &&
     report.skills.length === 0 &&
-    report.commands.length === 0
+    report.commands.length === 0 &&
+    report.instructions.length === 0
   ) {
     lines.push('(empty catalog)');
   }

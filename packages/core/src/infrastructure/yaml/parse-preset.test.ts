@@ -53,6 +53,22 @@ settings:
     const preset = parsePreset('agents: [docs-manager]', 'p');
     expect(preset.skillIds).toEqual([]);
     expect(preset.commandIds).toEqual([]);
+    expect(preset.instructionsIds).toEqual([]);
+  });
+
+  it('parses "instructions" as a single id', () => {
+    const preset = parsePreset('instructions: intro', 'p');
+    expect(preset.instructionsIds.map(String)).toEqual(['intro']);
+  });
+
+  it('rejects "instructions" as a list (must be singular)', () => {
+    expect(() => parsePreset('instructions: [intro, conventions]', 'p')).toThrow(
+      InvalidPresetError,
+    );
+  });
+
+  it('rejects "instructions" with an invalid slug', () => {
+    expect(() => parsePreset('instructions: "Bad Id"', 'p')).toThrow(InvalidSlugError);
   });
 
   describe('errors', () => {

@@ -27,6 +27,7 @@ describe('runList (CLI command)', () => {
     expect(report.agents).toEqual([]);
     expect(report.skills).toEqual([]);
     expect(report.commands).toEqual([]);
+    expect(report.instructions).toEqual([]);
   });
 
   it('returns presets with extends and members', async () => {
@@ -62,31 +63,48 @@ describe('formatListReport (human)', () => {
   it('shows presets, agents, skills and commands grouped', () => {
     const out = formatListReport({
       presets: [
-        { name: 'base', extends: [], agents: ['a', 'b'], skills: [], commands: [] },
+        {
+          name: 'base',
+          extends: [],
+          agents: ['a', 'b'],
+          skills: [],
+          commands: [],
+          instructions: [],
+        },
         {
           name: 'nestjs',
           extends: ['base'],
           agents: ['c'],
           skills: ['s'],
           commands: [],
+          instructions: ['intro'],
         },
       ],
       agents: [{ id: 'a', description: 'agent a' }],
       skills: [{ id: 's', description: '' }],
       commands: [],
+      instructions: [{ id: 'intro', description: '' }],
     });
     expect(out).toContain('Presets (2):');
     expect(out).toContain('base: 2 agents');
-    expect(out).toContain('nestjs (extends base): 1 agents, 1 skills');
+    expect(out).toContain('nestjs (extends base): 1 agents, 1 skills, 1 instructions');
     expect(out).toContain('Agents (1):');
     expect(out).toContain('- a — agent a');
     expect(out).toContain('Skills (1):');
     expect(out).toContain('- s');
+    expect(out).toContain('Instructions (1):');
+    expect(out).toContain('- intro');
     expect(out).not.toContain('Commands');
   });
 
   it('shows (empty catalog) when there is nothing', () => {
-    const out = formatListReport({ presets: [], agents: [], skills: [], commands: [] });
+    const out = formatListReport({
+      presets: [],
+      agents: [],
+      skills: [],
+      commands: [],
+      instructions: [],
+    });
     expect(out).toBe('(empty catalog)');
   });
 });
@@ -94,10 +112,20 @@ describe('formatListReport (human)', () => {
 describe('formatListReportJson', () => {
   it('returns valid JSON', () => {
     const report = {
-      presets: [{ name: 'base', extends: [], agents: ['a'], skills: [], commands: [] }],
+      presets: [
+        {
+          name: 'base',
+          extends: [],
+          agents: ['a'],
+          skills: [],
+          commands: [],
+          instructions: [],
+        },
+      ],
       agents: [{ id: 'a', description: 'desc' }],
       skills: [],
       commands: [],
+      instructions: [],
     };
     const out = formatListReportJson(report);
     expect(JSON.parse(out)).toEqual(report);

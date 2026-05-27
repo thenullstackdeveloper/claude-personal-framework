@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ArtifactNotFoundError } from '../../domain/errors/domain-error.js';
-import { AgentId, CommandId, SkillId } from '../../domain/model/identifiers.js';
+import { AgentId, CommandId, InstructionsId, SkillId } from '../../domain/model/identifiers.js';
 import { CatalogReader } from './catalog-reader.js';
 
 describe('CatalogReader', () => {
@@ -94,6 +94,39 @@ describe('CatalogReader', () => {
       await expect(reader.readCommand(CommandId.of('missing'))).rejects.toThrow(
         ArtifactNotFoundError,
       );
+    });
+  });
+
+  describe('readInstructions', () => {
+    it('returns Instructions with the file content verbatim', async () => {
+      await writeFileAt('instructions/intro.md', 'Some plain instructions.\n');
+      const reader = new CatalogReader(root);
+      const out = await reader.readInstructions(InstructionsId.of('intro'));
+      expect(out.content).toBe('Some plain instructions.\n');
+      expect(out.isEmpty()).toBe(false);
+    });
+
+    it('throws ArtifactNotFoundError when missing', async () => {
+      const reader = new CatalogReader(root);
+      await expect(reader.readInstructions(InstructionsId.of('missing'))).rejects.toThrow(
+        ArtifactNotFoundError,
+      );
+    });
+  });
+
+  describe('listInstructions', () => {
+    it('returns empty when the directory does not exist', async () => {
+      const reader = new CatalogReader(root);
+      expect(await reader.listInstructions()).toEqual([]);
+    });
+
+    it('lists instructions files with empty description (no frontmatter)', async () => {
+      await writeFileAt('instructions/intro.md', 'plain body');
+      await writeFileAt('instructions/conventions.md', 'more body');
+      const reader = new CatalogReader(root);
+      const summaries = await reader.listInstructions();
+      expect(summaries.map((s) => s.id.toString()).sort()).toEqual(['conventions', 'intro']);
+      for (const s of summaries) expect(s.description).toBe('');
     });
   });
 

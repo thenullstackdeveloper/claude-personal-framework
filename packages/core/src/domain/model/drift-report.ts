@@ -28,4 +28,5 @@ export type DriftReport = {
   readonly removed: readonly ArtifactRef[];
   readonly unchanged: readonly ArtifactRef[];
   readonly settings: SingletonDrift;
+  readonly instructions: SingletonDrift;
 };

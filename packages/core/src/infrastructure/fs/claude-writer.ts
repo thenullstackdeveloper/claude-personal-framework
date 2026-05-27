@@ -4,6 +4,7 @@ import type { WriterPort } from '../../application/ports/writer.port.js';
 import type { Agent } from '../../domain/model/agent.js';
 import type { Command } from '../../domain/model/command.js';
 import type { AgentId, CommandId, SkillId } from '../../domain/model/identifiers.js';
+import type { Instructions } from '../../domain/model/instructions.js';
 import type { Settings } from '../../domain/model/settings.js';
 import type { Skill } from '../../domain/model/skill.js';
 
@@ -13,6 +14,7 @@ const SKILLS_SUBDIR = 'skills';
 const COMMANDS_SUBDIR = 'commands';
 const ARTIFACT_EXT = '.md';
 const SETTINGS_FILENAME = 'settings.json';
+const INSTRUCTIONS_FILENAME = 'CLAUDE.md';
 
 const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
   return err instanceof Error && 'code' in err;
@@ -105,6 +107,21 @@ export class ClaudeWriter implements WriterPort {
   async deleteSettings(): Promise<void> {
     try {
       await rm(join(this.claudeDir(), SETTINGS_FILENAME));
+    } catch (err) {
+      if (isErrnoException(err) && err.code === 'ENOENT') return;
+      throw err;
+    }
+  }
+
+  async writeInstructions(instructions: Instructions): Promise<void> {
+    const dir = this.claudeDir();
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, INSTRUCTIONS_FILENAME), instructions.content, 'utf-8');
+  }
+
+  async deleteInstructions(): Promise<void> {
+    try {
+      await rm(join(this.claudeDir(), INSTRUCTIONS_FILENAME));
     } catch (err) {
       if (isErrnoException(err) && err.code === 'ENOENT') return;
       throw err;

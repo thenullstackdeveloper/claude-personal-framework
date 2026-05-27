@@ -61,3 +61,13 @@ export class PresetName extends Slug {
     return this.value === other.value;
   }
 }
+
+export class InstructionsId extends Slug {
+  static of(raw: string): InstructionsId {
+    return new InstructionsId(Slug.parse(raw, 'InstructionsId'));
+  }
+
+  equals(other: InstructionsId): boolean {
+    return this.value === other.value;
+  }
+}

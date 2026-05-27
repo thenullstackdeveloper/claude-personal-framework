@@ -63,6 +63,7 @@ export function applyOverrides(
       agentIds,
       skillIds,
       commandIds,
+      instructionsIds: preset.instructionsIds,
       settings: preset.settings,
     }),
     patches,

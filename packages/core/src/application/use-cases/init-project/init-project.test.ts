@@ -4,10 +4,12 @@ import type { Agent } from '../../../domain/model/agent.js';
 import type {
   AgentSummary,
   CommandSummary,
+  InstructionsSummary,
   SkillSummary,
 } from '../../../domain/model/artifact-summary.js';
 import type { Command } from '../../../domain/model/command.js';
 import { PresetName } from '../../../domain/model/identifiers.js';
+import type { Instructions } from '../../../domain/model/instructions.js';
 import { Preset } from '../../../domain/model/preset.js';
 import type { ProjectManifest } from '../../../domain/model/project-manifest.js';
 import type { Skill } from '../../../domain/model/skill.js';
@@ -29,6 +31,9 @@ class StubCatalog implements CatalogPort {
   async listCommands(): Promise<readonly CommandSummary[]> {
     return [];
   }
+  async listInstructions(): Promise<readonly InstructionsSummary[]> {
+    return [];
+  }
   async readAgent(): Promise<Agent> {
     throw new Error('not used');
   }
@@ -36,6 +41,9 @@ class StubCatalog implements CatalogPort {
     throw new Error('not used');
   }
   async readCommand(): Promise<Command> {
+    throw new Error('not used');
+  }
+  async readInstructions(): Promise<Instructions> {
     throw new Error('not used');
   }
 }

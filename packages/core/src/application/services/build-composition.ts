@@ -1,6 +1,7 @@
 import { Agent } from '../../domain/model/agent.js';
 import { Command } from '../../domain/model/command.js';
 import { Composition } from '../../domain/model/composition.js';
+import { Instructions } from '../../domain/model/instructions.js';
 import type { ProjectManifest } from '../../domain/model/project-manifest.js';
 import { Skill } from '../../domain/model/skill.js';
 import { type Patch, applyOverrides } from '../../domain/services/apply-overrides.js';
@@ -40,11 +41,17 @@ export const buildComposition = async (input: BuildCompositionInput): Promise<Co
   const resolved = resolveExtends(presets, manifest.presetName);
   const { preset, patches } = applyOverrides(resolved, manifest.overrides);
 
-  const [rawAgents, rawSkills, rawCommands] = await Promise.all([
+  const [rawAgents, rawSkills, rawCommands, rawInstructions] = await Promise.all([
     Promise.all(preset.agentIds.map((id) => catalog.readAgent(id))),
     Promise.all(preset.skillIds.map((id) => catalog.readSkill(id))),
     Promise.all(preset.commandIds.map((id) => catalog.readCommand(id))),
+    Promise.all(preset.instructionsIds.map((id) => catalog.readInstructions(id))),
   ]);
+
+  const instructions = rawInstructions.reduce(
+    (acc, piece) => acc.append(piece),
+    Instructions.empty(),
+  );
 
   return Composition.of({
     projectPath,
@@ -52,5 +59,6 @@ export const buildComposition = async (input: BuildCompositionInput): Promise<Co
     skills: rawSkills.map((s) => patchSkill(s, patches)),
     commands: rawCommands.map((c) => patchCommand(c, patches)),
     settings: preset.settings,
+    instructions,
   });
 };

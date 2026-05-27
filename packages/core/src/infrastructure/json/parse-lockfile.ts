@@ -8,6 +8,7 @@ import {
   Hooks,
 } from '../../domain/model/hooks.js';
 import { AgentId, CommandId, PresetName, SkillId } from '../../domain/model/identifiers.js';
+import { Instructions } from '../../domain/model/instructions.js';
 import { LOCKFILE_VERSION, type LockedArtifact, Lockfile } from '../../domain/model/lockfile.js';
 import { Settings } from '../../domain/model/settings.js';
 
@@ -182,11 +183,40 @@ export const parseLockfile = (jsonText: string): Lockfile => {
     settingsHash = ContentHash.fromHex(settingsHashRaw);
   }
 
+  // instructions + instructionsHash are optional for back-compat with
+  // lockfiles written before instructions landed. Same pattern as settings:
+  // missing → empty + computed hash.
+  let instructions: Instructions = Instructions.empty();
+  const instructionsRaw = raw['instructions'];
+  if (instructionsRaw !== undefined) {
+    if (!isObject(instructionsRaw)) {
+      throw new InvalidLockfileError('"instructions" must be an object');
+    }
+    const content = instructionsRaw['content'];
+    if (content !== undefined && typeof content !== 'string') {
+      throw new InvalidLockfileError('"instructions.content" must be a string');
+    }
+    if (typeof content === 'string') {
+      instructions = Instructions.of(content);
+    }
+  }
+
+  let instructionsHash: ContentHash | undefined;
+  const instructionsHashRaw = raw['instructionsHash'];
+  if (instructionsHashRaw !== undefined) {
+    if (typeof instructionsHashRaw !== 'string') {
+      throw new InvalidLockfileError('"instructionsHash" must be a string');
+    }
+    instructionsHash = ContentHash.fromHex(instructionsHashRaw);
+  }
+
   return Lockfile.of({
     presetName,
     artifacts,
     settings,
     ...(settingsHash && { settingsHash }),
+    instructions,
+    ...(instructionsHash && { instructionsHash }),
   });
 };
 
@@ -203,7 +233,7 @@ export const serializeLockfile = (lockfile: Lockfile): string => {
     settingsObj['hooks'] = hooks.toObject();
   }
 
-  const out = {
+  const out: Record<string, unknown> = {
     version: LOCKFILE_VERSION,
     presetName: lockfile.presetName.toString(),
     artifacts: lockfile.artifacts.map((a) => ({
@@ -214,5 +244,11 @@ export const serializeLockfile = (lockfile: Lockfile): string => {
     settings: settingsObj,
     settingsHash: lockfile.settingsHash.toString(),
   };
+
+  if (!lockfile.instructions.isEmpty()) {
+    out['instructions'] = { content: lockfile.instructions.content };
+  }
+  out['instructionsHash'] = lockfile.instructionsHash.toString();
+
   return `${JSON.stringify(out, null, 2)}\n`;
 };

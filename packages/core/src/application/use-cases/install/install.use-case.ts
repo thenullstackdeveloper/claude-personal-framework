@@ -5,8 +5,14 @@ import type { AgentId, CommandId, SkillId } from '../../../domain/model/identifi
 import { Lockfile } from '../../../domain/model/lockfile.js';
 import type { ProjectManifest } from '../../../domain/model/project-manifest.js';
 import { computeDrift } from '../../../domain/services/compute-drift.js';
-import type { CatalogPort, LockfileStorePort, WriterPort } from '../../ports/index.js';
+import type {
+  CatalogPort,
+  LockfileStorePort,
+  ProjectInspectorPort,
+  WriterPort,
+} from '../../ports/index.js';
 import { buildComposition } from '../../services/build-composition.js';
+import { UnmanagedClaudeMdError } from './errors.js';
 
 export type InstallInput = {
   readonly manifest: ProjectManifest;
@@ -14,6 +20,7 @@ export type InstallInput = {
   readonly catalog: CatalogPort;
   readonly writer: WriterPort;
   readonly lockfileStore: LockfileStorePort;
+  readonly inspector: ProjectInspectorPort;
 };
 
 export type InstallResult = {
@@ -25,16 +32,25 @@ export type InstallResult = {
     readonly commands: readonly CommandId[];
     /** True if `.claude/settings.json` was written or rewritten. */
     readonly settings: boolean;
+    /** True if `.claude/CLAUDE.md` was written or rewritten. */
+    readonly instructions: boolean;
   };
 };
 
 export const install = async (input: InstallInput): Promise<InstallResult> => {
-  const { manifest, projectPath, catalog, writer, lockfileStore } = input;
+  const { manifest, projectPath, catalog, writer, lockfileStore, inspector } = input;
 
   const composition = await buildComposition({ manifest, projectPath, catalog });
 
   const previousLockfile = await lockfileStore.read();
   const drift = computeDrift(previousLockfile, composition);
+
+  // Take-over guard: if the install would create a fresh CLAUDE.md and one
+  // already exists on disk *not managed by us*, refuse. The user must
+  // move or delete it before we take ownership.
+  if (drift.instructions.kind === 'added' && (await inspector.claudeMdExists())) {
+    throw new UnmanagedClaudeMdError();
+  }
 
   // Delete only what the previous lockfile said was installed and no longer is.
   // Orphan files (not tracked by the lockfile) are left untouched.
@@ -59,6 +75,7 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
   // represented by deleting the file (no .claude/settings.json) rather
   // than emitting an empty `{}`.
   const settingsWritten = await applySettingsDrift(writer, composition.settings, drift);
+  const instructionsWritten = await applyInstructionsDrift(writer, composition.instructions, drift);
 
   const nextLockfile = Lockfile.of({
     presetName: manifest.presetName,
@@ -77,6 +94,7 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
       })),
     ],
     settings: composition.settings,
+    instructions: composition.instructions,
   });
   await lockfileStore.write(nextLockfile);
 
@@ -88,6 +106,7 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
       skills: composition.skills.map((s) => s.id),
       commands: composition.commands.map((c) => c.id),
       settings: settingsWritten,
+      instructions: instructionsWritten,
     },
   };
 };
@@ -114,6 +133,29 @@ const applySettingsDrift = async (
         return false;
       }
       await writer.writeSettings(settings);
+      return true;
+  }
+};
+
+const applyInstructionsDrift = async (
+  writer: WriterPort,
+  instructions: Composition['instructions'],
+  drift: DriftReport,
+): Promise<boolean> => {
+  switch (drift.instructions.kind) {
+    case 'added':
+    case 'updated':
+      await writer.writeInstructions(instructions);
+      return true;
+    case 'removed':
+      await writer.deleteInstructions();
+      return false;
+    case 'unchanged':
+      if (instructions.isEmpty()) {
+        await writer.deleteInstructions();
+        return false;
+      }
+      await writer.writeInstructions(instructions);
       return true;
   }
 };

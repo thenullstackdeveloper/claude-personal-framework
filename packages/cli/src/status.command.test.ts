@@ -109,6 +109,7 @@ describe('formatStatusReport (human)', () => {
       removed: [{ type: 'skill', id: 'gone' }],
       unchanged: [{ type: 'command', id: 'stable' }],
       settings: { kind: 'unchanged' },
+      instructions: { kind: 'unchanged' },
     });
     expect(out).toContain('Preset: base');
     expect(out).toContain('Lockfile: present');
@@ -129,6 +130,7 @@ describe('formatStatusReport (human)', () => {
       removed: [],
       unchanged: [{ type: 'agent', id: 'x' }],
       settings: { kind: 'unchanged' },
+      instructions: { kind: 'unchanged' },
     });
     expect(out).toContain('No drift');
   });
@@ -142,6 +144,7 @@ describe('formatStatusReport (human)', () => {
       removed: [],
       unchanged: [],
       settings: { kind: 'unchanged' },
+      instructions: { kind: 'unchanged' },
     });
     expect(out).toContain('Lockfile: missing');
     expect(out).toContain('Added (1):');
@@ -158,6 +161,7 @@ describe('formatStatusReportJson', () => {
       removed: [],
       unchanged: [],
       settings: { kind: 'unchanged' as const },
+      instructions: { kind: 'unchanged' as const },
     };
     expect(JSON.parse(formatStatusReportJson(report))).toEqual(report);
   });

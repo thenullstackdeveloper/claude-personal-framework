@@ -6,6 +6,7 @@ import { InvalidLockfileError } from '../../domain/errors/domain-error.js';
 import { ArtifactRef } from '../../domain/model/artifact-ref.js';
 import { ContentHash } from '../../domain/model/content-hash.js';
 import { AgentId, PresetName } from '../../domain/model/identifiers.js';
+import { Instructions } from '../../domain/model/instructions.js';
 import { Lockfile } from '../../domain/model/lockfile.js';
 import { Settings } from '../../domain/model/settings.js';
 import { LockfileStore } from './lockfile-store.js';
@@ -66,6 +67,7 @@ describe('LockfileStore', () => {
           },
         ],
         settings: Settings.empty(),
+        instructions: Instructions.empty(),
       });
 
       await store.write(lockfile);
@@ -84,11 +86,13 @@ describe('LockfileStore', () => {
         presetName: PresetName.of('a'),
         artifacts: [],
         settings: Settings.empty(),
+        instructions: Instructions.empty(),
       });
       const second = Lockfile.of({
         presetName: PresetName.of('b'),
         artifacts: [],
         settings: Settings.empty(),
+        instructions: Instructions.empty(),
       });
       await store.write(first);
       await store.write(second);
@@ -109,6 +113,7 @@ describe('LockfileStore', () => {
         },
       ],
       settings: Settings.of({ allow: ['Bash(ls)'] }),
+      instructions: Instructions.empty(),
     });
     await store.write(original);
     const restored = await store.read();

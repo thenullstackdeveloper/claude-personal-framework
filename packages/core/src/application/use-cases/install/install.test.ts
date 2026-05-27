@@ -4,14 +4,27 @@ import { Agent } from '../../../domain/model/agent.js';
 import { ArtifactRef } from '../../../domain/model/artifact-ref.js';
 import { Command } from '../../../domain/model/command.js';
 import { ContentHash } from '../../../domain/model/content-hash.js';
-import { AgentId, CommandId, PresetName, SkillId } from '../../../domain/model/identifiers.js';
+import {
+  AgentId,
+  CommandId,
+  InstructionsId,
+  PresetName,
+  SkillId,
+} from '../../../domain/model/identifiers.js';
+import { Instructions } from '../../../domain/model/instructions.js';
 import { type LockedArtifact, Lockfile } from '../../../domain/model/lockfile.js';
 import { Override } from '../../../domain/model/override.js';
 import { Preset } from '../../../domain/model/preset.js';
 import type { ProjectManifest } from '../../../domain/model/project-manifest.js';
 import { Settings } from '../../../domain/model/settings.js';
 import { Skill } from '../../../domain/model/skill.js';
-import type { CatalogPort, LockfileStorePort, WriterPort } from '../../ports/index.js';
+import type {
+  CatalogPort,
+  LockfileStorePort,
+  ProjectInspectorPort,
+  WriterPort,
+} from '../../ports/index.js';
+import { UnmanagedClaudeMdError } from './errors.js';
 import { install } from './install.use-case.js';
 
 class InMemoryCatalog implements CatalogPort {
@@ -20,6 +33,7 @@ class InMemoryCatalog implements CatalogPort {
     private readonly agents: Map<string, string> = new Map(),
     private readonly skills: Map<string, string> = new Map(),
     private readonly commands: Map<string, string> = new Map(),
+    private readonly instructions: Map<string, string> = new Map(),
   ) {}
 
   async listPresets(): Promise<readonly Preset[]> {
@@ -34,6 +48,13 @@ class InMemoryCatalog implements CatalogPort {
   }
   async listCommands() {
     return [...this.commands.keys()].map((id) => ({ id: CommandId.of(id), description: '' }));
+  }
+
+  async listInstructions() {
+    return [...this.instructions.keys()].map((id) => ({
+      id: InstructionsId.of(id),
+      description: '',
+    }));
   }
 
   async readAgent(id: AgentId): Promise<Agent> {
@@ -59,25 +80,42 @@ class InMemoryCatalog implements CatalogPort {
     }
     return Command.of(id, content);
   }
+
+  async readInstructions(id: InstructionsId): Promise<Instructions> {
+    const content = this.instructions.get(id.toString());
+    if (content === undefined) {
+      throw new ArtifactNotFoundError(`instructions "${id}" not in fake catalog`);
+    }
+    return Instructions.of(content);
+  }
 }
 
 class RecordingWriter implements WriterPort {
-  written: { agents: Agent[]; skills: Skill[]; commands: Command[]; settings: Settings[] } = {
+  written: {
+    agents: Agent[];
+    skills: Skill[];
+    commands: Command[];
+    settings: Settings[];
+    instructions: Instructions[];
+  } = {
     agents: [],
     skills: [],
     commands: [],
     settings: [],
+    instructions: [],
   };
   deleted: {
     agents: AgentId[];
     skills: SkillId[];
     commands: CommandId[];
     settingsCount: number;
+    instructionsCount: number;
   } = {
     agents: [],
     skills: [],
     commands: [],
     settingsCount: 0,
+    instructionsCount: 0,
   };
 
   async writeAgent(agent: Agent): Promise<void> {
@@ -104,6 +142,12 @@ class RecordingWriter implements WriterPort {
   async deleteSettings(): Promise<void> {
     this.deleted.settingsCount++;
   }
+  async writeInstructions(instructions: Instructions): Promise<void> {
+    this.written.instructions.push(instructions);
+  }
+  async deleteInstructions(): Promise<void> {
+    this.deleted.instructionsCount++;
+  }
 }
 
 class InMemoryLockfileStore implements LockfileStorePort {
@@ -118,6 +162,16 @@ class InMemoryLockfileStore implements LockfileStorePort {
   }
 }
 
+class StubInspector implements ProjectInspectorPort {
+  constructor(private claudeMd = false) {}
+  setClaudeMd(value: boolean): void {
+    this.claudeMd = value;
+  }
+  async claudeMdExists(): Promise<boolean> {
+    return this.claudeMd;
+  }
+}
+
 const buildManifest = (overrides: readonly Override[] = []): ProjectManifest => ({
   presetName: PresetName.of('base'),
   overrides,
@@ -126,10 +180,12 @@ const buildManifest = (overrides: readonly Override[] = []): ProjectManifest => 
 describe('install use case', () => {
   let writer: RecordingWriter;
   let lockfileStore: InMemoryLockfileStore;
+  let inspector: StubInspector;
 
   beforeEach(() => {
     writer = new RecordingWriter();
     lockfileStore = new InMemoryLockfileStore();
+    inspector = new StubInspector(false);
   });
 
   it('first install: writes everything, deletes nothing', async () => {
@@ -152,6 +208,7 @@ describe('install use case', () => {
       catalog,
       writer,
       lockfileStore,
+      inspector,
     });
 
     expect(writer.written.agents.map((a) => a.id.toString())).toEqual([
@@ -175,6 +232,7 @@ describe('install use case', () => {
       catalog,
       writer,
       lockfileStore,
+      inspector,
     });
 
     expect(lockfileStore.current).not.toBeNull();
@@ -194,6 +252,7 @@ describe('install use case', () => {
       catalog,
       writer,
       lockfileStore,
+      inspector,
     });
 
     // Reset writer to observe second run
@@ -204,6 +263,7 @@ describe('install use case', () => {
       catalog,
       writer,
       lockfileStore,
+      inspector,
     });
 
     expect(second.drift.unchanged).toHaveLength(1);
@@ -225,6 +285,7 @@ describe('install use case', () => {
       presetName: PresetName.of('base'),
       artifacts: [lockedAsOld],
       settings: Settings.empty(),
+      instructions: Instructions.empty(),
     });
 
     const catalog = new InMemoryCatalog(
@@ -238,6 +299,7 @@ describe('install use case', () => {
       catalog,
       writer,
       lockfileStore,
+      inspector,
     });
 
     expect(result.drift.updated).toHaveLength(1);
@@ -258,6 +320,7 @@ describe('install use case', () => {
         },
       ],
       settings: Settings.empty(),
+      instructions: Instructions.empty(),
     });
 
     const catalog = new InMemoryCatalog(
@@ -276,6 +339,7 @@ describe('install use case', () => {
       catalog,
       writer,
       lockfileStore,
+      inspector,
     });
 
     expect(writer.deleted.agents.map(String)).toEqual(['was-here']);
@@ -290,6 +354,7 @@ describe('install use case', () => {
         { ref: ArtifactRef.agent(AgentId.of('drop')), contentHash: ContentHash.of('d') },
       ],
       settings: Settings.empty(),
+      instructions: Instructions.empty(),
     });
 
     const catalog = new InMemoryCatalog(
@@ -311,6 +376,7 @@ describe('install use case', () => {
       catalog,
       writer,
       lockfileStore,
+      inspector,
     });
 
     expect(writer.deleted.agents.map(String)).toEqual(['drop']);
@@ -342,6 +408,7 @@ describe('install use case', () => {
       catalog,
       writer,
       lockfileStore,
+      inspector,
     });
 
     expect(writer.written.agents.map((a) => a.id.toString())).toEqual([
@@ -369,6 +436,7 @@ describe('install use case', () => {
       catalog,
       writer,
       lockfileStore,
+      inspector,
     });
 
     expect(writer.written.agents).toHaveLength(1);
@@ -397,10 +465,139 @@ describe('install use case', () => {
       catalog,
       writer,
       lockfileStore,
+      inspector,
     });
 
     expect(writer.written.skills.map((s) => s.id.toString())).toEqual(['hexagonal-rn']);
     expect(writer.written.commands.map((c) => c.id.toString())).toEqual(['build-android']);
+  });
+
+  describe('instructions', () => {
+    const presetsWithIntro = [
+      Preset.of({
+        name: PresetName.of('base'),
+        instructionsIds: [InstructionsId.of('intro')],
+      }),
+    ];
+
+    it('writes CLAUDE.md and records hash on first install when the preset has instructions', async () => {
+      const catalog = new InMemoryCatalog(
+        presetsWithIntro,
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map([['intro', 'hello, claude']]),
+      );
+
+      const result = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog,
+        writer,
+        lockfileStore,
+        inspector,
+      });
+
+      expect(writer.written.instructions.map((i) => i.content)).toEqual(['hello, claude']);
+      expect(result.written.instructions).toBe(true);
+      expect(lockfileStore.current?.instructions.content).toBe('hello, claude');
+      expect(lockfileStore.current?.instructionsHash.toString()).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    it('refuses to overwrite an unmanaged CLAUDE.md on first install', async () => {
+      inspector.setClaudeMd(true);
+      const catalog = new InMemoryCatalog(
+        presetsWithIntro,
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map([['intro', 'hi']]),
+      );
+
+      await expect(
+        install({
+          manifest: buildManifest(),
+          projectPath: '/tmp/p',
+          catalog,
+          writer,
+          lockfileStore,
+          inspector,
+        }),
+      ).rejects.toThrow(UnmanagedClaudeMdError);
+
+      expect(writer.written.instructions).toEqual([]);
+      expect(lockfileStore.current).toBeNull();
+    });
+
+    it('does not check disk when the preset has no instructions', async () => {
+      inspector.setClaudeMd(true); // would trigger take-over if "added"
+      const catalog = new InMemoryCatalog(
+        [Preset.of({ name: PresetName.of('base'), agentIds: [AgentId.of('a')] })],
+        new Map([['a', 'x']]),
+      );
+
+      await expect(
+        install({
+          manifest: buildManifest(),
+          projectPath: '/tmp/p',
+          catalog,
+          writer,
+          lockfileStore,
+          inspector,
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    it('deletes CLAUDE.md when instructions disappear from the preset', async () => {
+      lockfileStore.current = Lockfile.of({
+        presetName: PresetName.of('base'),
+        artifacts: [],
+        settings: Settings.empty(),
+        instructions: Instructions.of('previous'),
+      });
+      const catalog = new InMemoryCatalog([Preset.of({ name: PresetName.of('base') })]);
+
+      const result = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog,
+        writer,
+        lockfileStore,
+        inspector,
+      });
+
+      expect(writer.deleted.instructionsCount).toBe(1);
+      expect(result.written.instructions).toBe(false);
+      expect(lockfileStore.current?.instructions.isEmpty()).toBe(true);
+    });
+
+    it('rewrites CLAUDE.md when the content changes', async () => {
+      lockfileStore.current = Lockfile.of({
+        presetName: PresetName.of('base'),
+        artifacts: [],
+        settings: Settings.empty(),
+        instructions: Instructions.of('old'),
+      });
+      const catalog = new InMemoryCatalog(
+        presetsWithIntro,
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map([['intro', 'new']]),
+      );
+
+      const result = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog,
+        writer,
+        lockfileStore,
+        inspector,
+      });
+
+      expect(result.drift.instructions.kind).toBe('updated');
+      expect(writer.written.instructions.map((i) => i.content)).toEqual(['new']);
+    });
   });
 
   it('builds a Composition with the resolved settings', async () => {
@@ -417,6 +614,7 @@ describe('install use case', () => {
       catalog,
       writer,
       lockfileStore,
+      inspector,
     });
 
     expect(result.composition.projectPath).toBe('/tmp/p');
@@ -433,6 +631,7 @@ describe('install use case', () => {
           catalog,
           writer,
           lockfileStore,
+          inspector,
         }),
       ).rejects.toThrow(PresetNotFoundError);
     });
@@ -449,6 +648,7 @@ describe('install use case', () => {
           catalog,
           writer,
           lockfileStore,
+          inspector,
         }),
       ).rejects.toThrow(ArtifactNotFoundError);
     });

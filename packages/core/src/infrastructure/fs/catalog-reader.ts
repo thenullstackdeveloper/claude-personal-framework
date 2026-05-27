@@ -6,10 +6,12 @@ import { Agent } from '../../domain/model/agent.js';
 import type {
   AgentSummary,
   CommandSummary,
+  InstructionsSummary,
   SkillSummary,
 } from '../../domain/model/artifact-summary.js';
 import { Command } from '../../domain/model/command.js';
-import { AgentId, CommandId, SkillId } from '../../domain/model/identifiers.js';
+import { AgentId, CommandId, InstructionsId, SkillId } from '../../domain/model/identifiers.js';
+import { Instructions } from '../../domain/model/instructions.js';
 import type { Preset } from '../../domain/model/preset.js';
 import { Skill } from '../../domain/model/skill.js';
 import { extractFrontmatterDescription } from '../markdown/frontmatter.js';
@@ -87,6 +89,16 @@ export class CatalogReader implements CatalogPort {
     return this.listArtifactSummaries('commands', (raw) => parseIdOrSkip(raw, CommandId.of));
   }
 
+  async listInstructions(): Promise<readonly InstructionsSummary[]> {
+    // Instructions are markdown plano sin frontmatter — el summary deja
+    // description vacío en MVP. La carpeta puede no existir si el catálogo
+    // no usa instructions todavía; en ese caso devolvemos lista vacía vía
+    // listArtifactSummaries (ya hace fallback ENOENT).
+    return this.listArtifactSummaries('instructions', (raw) =>
+      parseIdOrSkip(raw, InstructionsId.of),
+    );
+  }
+
   private async listArtifactSummaries<TId extends { toString(): string }>(
     subdir: string,
     factory: (rawId: string) => TId | null,
@@ -120,5 +132,11 @@ export class CatalogReader implements CatalogPort {
     const path = join(this.frameworkRoot, 'commands', `${id.toString()}${ARTIFACT_EXT}`);
     const content = await readArtifactFile(path, `command "${id.toString()}"`);
     return Command.of(id, content);
+  }
+
+  async readInstructions(id: InstructionsId): Promise<Instructions> {
+    const path = join(this.frameworkRoot, 'instructions', `${id.toString()}${ARTIFACT_EXT}`);
+    const content = await readArtifactFile(path, `instructions "${id.toString()}"`);
+    return Instructions.of(content);
   }
 }

@@ -2,6 +2,7 @@ import {
   CatalogReader,
   ClaudeWriter,
   FsManifestStore,
+  FsProjectInspector,
   LockfileStore,
   install,
 } from '@claude-fw/core';
@@ -17,6 +18,7 @@ export type InstallCommandReport = {
   readonly skills: readonly string[];
   readonly commands: readonly string[];
   readonly settings: boolean;
+  readonly instructions: boolean;
 };
 
 export const runInstall = async (args: InstallCommandArgs): Promise<InstallCommandReport> => {
@@ -31,6 +33,7 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
   const catalog = new CatalogReader(args.frameworkRoot);
   const writer = new ClaudeWriter(args.projectRoot);
   const lockfileStore = new LockfileStore(args.projectRoot);
+  const inspector = new FsProjectInspector(args.projectRoot);
 
   const result = await install({
     manifest,
@@ -38,6 +41,7 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
     catalog,
     writer,
     lockfileStore,
+    inspector,
   });
 
   return {
@@ -46,6 +50,7 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
     skills: result.written.skills.map(String),
     commands: result.written.commands.map(String),
     settings: result.written.settings,
+    instructions: result.written.instructions,
   };
 };
 
@@ -60,8 +65,9 @@ export const formatInstallReport = (report: InstallCommandReport): string => {
   section('Skills', report.skills);
   section('Commands', report.commands);
   if (report.settings) lines.push('  Settings: .claude/settings.json written.');
+  if (report.instructions) lines.push('  Instructions: .claude/CLAUDE.md written.');
   const totalArtifacts = report.agents.length + report.skills.length + report.commands.length;
-  if (totalArtifacts === 0 && !report.settings) {
+  if (totalArtifacts === 0 && !report.settings && !report.instructions) {
     lines.push('  (no artifacts to install)');
   }
   return lines.join('\n');

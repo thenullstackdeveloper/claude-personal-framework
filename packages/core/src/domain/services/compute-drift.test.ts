@@ -5,6 +5,7 @@ import { Command } from '../model/command.js';
 import { Composition } from '../model/composition.js';
 import { ContentHash } from '../model/content-hash.js';
 import { AgentId, CommandId, PresetName, SkillId } from '../model/identifiers.js';
+import { Instructions } from '../model/instructions.js';
 import { Lockfile } from '../model/lockfile.js';
 import { Settings } from '../model/settings.js';
 import { Skill } from '../model/skill.js';
@@ -15,6 +16,7 @@ const makeComposition = (
     agents?: { id: string; content: string }[];
     skills?: { id: string; content: string }[];
     commands?: { id: string; content: string }[];
+    instructions?: Instructions;
   } = {},
 ) => {
   return Composition.of({
@@ -23,12 +25,14 @@ const makeComposition = (
     skills: (overrides.skills ?? []).map((s) => Skill.of(SkillId.of(s.id), s.content)),
     commands: (overrides.commands ?? []).map((c) => Command.of(CommandId.of(c.id), c.content)),
     settings: Settings.empty(),
+    instructions: overrides.instructions ?? Instructions.empty(),
   });
 };
 
 const lockfileFor = (
   presetName: string,
   artifacts: { type: 'agent' | 'skill' | 'command'; id: string; content: string }[],
+  options: { instructions?: Instructions } = {},
 ) => {
   return Lockfile.of({
     presetName: PresetName.of(presetName),
@@ -41,6 +45,7 @@ const lockfileFor = (
       return { ref: ArtifactRef.command(CommandId.of(a.id)), contentHash: hash };
     }),
     settings: Settings.empty(),
+    instructions: options.instructions ?? Instructions.empty(),
   });
 };
 
@@ -119,6 +124,66 @@ describe('computeDrift', () => {
       expect(drift.added.map((r) => `${r.type}:${r.id.toString()}`)).toEqual(['skill:foo']);
       expect(drift.removed.map((r) => `${r.type}:${r.id.toString()}`)).toEqual(['agent:foo']);
       expect(drift.unchanged).toEqual([]);
+    });
+
+    describe('instructions drift', () => {
+      it('empty in lockfile, empty in composition → unchanged', () => {
+        const lockfile = lockfileFor('p', []);
+        const composition = makeComposition({ instructions: Instructions.empty() });
+        const drift = computeDrift(lockfile, composition);
+        expect(drift.instructions).toEqual({ kind: 'unchanged' });
+      });
+
+      it('empty in lockfile, content in composition → added', () => {
+        const lockfile = lockfileFor('p', []);
+        const composition = makeComposition({ instructions: Instructions.of('hello') });
+        const drift = computeDrift(lockfile, composition);
+        expect(drift.instructions.kind).toBe('added');
+      });
+
+      it('content in lockfile, empty in composition → removed (with oldSha)', () => {
+        const previous = Instructions.of('hello');
+        const lockfile = lockfileFor('p', [], { instructions: previous });
+        const composition = makeComposition({ instructions: Instructions.empty() });
+        const drift = computeDrift(lockfile, composition);
+        expect(drift.instructions.kind).toBe('removed');
+        if (drift.instructions.kind === 'removed') {
+          expect(drift.instructions.oldSha.equals(previous.contentHash())).toBe(true);
+        }
+      });
+
+      it('same content → unchanged', () => {
+        const same = Instructions.of('same');
+        const lockfile = lockfileFor('p', [], { instructions: same });
+        const composition = makeComposition({ instructions: Instructions.of('same') });
+        const drift = computeDrift(lockfile, composition);
+        expect(drift.instructions).toEqual({ kind: 'unchanged' });
+      });
+
+      it('different content → updated (with oldSha and newSha)', () => {
+        const previous = Instructions.of('one');
+        const lockfile = lockfileFor('p', [], { instructions: previous });
+        const next = Instructions.of('other');
+        const composition = makeComposition({ instructions: next });
+        const drift = computeDrift(lockfile, composition);
+        expect(drift.instructions.kind).toBe('updated');
+        if (drift.instructions.kind === 'updated') {
+          expect(drift.instructions.oldSha.equals(previous.contentHash())).toBe(true);
+          expect(drift.instructions.newSha.equals(next.contentHash())).toBe(true);
+        }
+      });
+
+      it('no lockfile, content in composition → added', () => {
+        const composition = makeComposition({ instructions: Instructions.of('first') });
+        const drift = computeDrift(null, composition);
+        expect(drift.instructions.kind).toBe('added');
+      });
+
+      it('no lockfile, empty composition → unchanged', () => {
+        const composition = makeComposition();
+        const drift = computeDrift(null, composition);
+        expect(drift.instructions).toEqual({ kind: 'unchanged' });
+      });
     });
 
     it('handles a mix of all four categories', () => {

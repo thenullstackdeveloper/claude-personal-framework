@@ -3,6 +3,7 @@ import { Agent } from './agent.js';
 import { Command } from './command.js';
 import { Composition } from './composition.js';
 import { AgentId, CommandId, SkillId } from './identifiers.js';
+import { Instructions } from './instructions.js';
 import { Settings } from './settings.js';
 import { Skill } from './skill.js';
 
@@ -14,6 +15,7 @@ describe('Composition', () => {
       skills: [Skill.of(SkillId.of('hexagonal-rn'), 'skill body')],
       commands: [Command.of(CommandId.of('build-android'), 'cmd body')],
       settings: Settings.of({ allow: ['Bash(ls)'] }),
+      instructions: Instructions.empty(),
     });
 
     expect(composition.projectPath).toBe('/tmp/project');

@@ -1,6 +1,7 @@
 import type { ArtifactRef } from './artifact-ref.js';
 import type { ContentHash } from './content-hash.js';
 import type { PresetName } from './identifiers.js';
+import type { Instructions } from './instructions.js';
 import type { Settings } from './settings.js';
 
 export const LOCKFILE_VERSION = 1;
@@ -21,6 +22,12 @@ export type LockfileInit = {
    * computes it from the provided settings.
    */
   readonly settingsHash?: ContentHash;
+  readonly instructions: Instructions;
+  /**
+   * Hash of the instructions content. Persisted for the same reasons as
+   * `settingsHash`. If omitted, computed from the provided instructions.
+   */
+  readonly instructionsHash?: ContentHash;
 };
 
 export class Lockfile {
@@ -29,11 +36,21 @@ export class Lockfile {
     public readonly artifacts: readonly LockedArtifact[],
     public readonly settings: Settings,
     public readonly settingsHash: ContentHash,
+    public readonly instructions: Instructions,
+    public readonly instructionsHash: ContentHash,
   ) {}
 
   static of(init: LockfileInit): Lockfile {
     const settingsHash = init.settingsHash ?? init.settings.contentHash();
-    return new Lockfile(init.presetName, init.artifacts, init.settings, settingsHash);
+    const instructionsHash = init.instructionsHash ?? init.instructions.contentHash();
+    return new Lockfile(
+      init.presetName,
+      init.artifacts,
+      init.settings,
+      settingsHash,
+      init.instructions,
+      instructionsHash,
+    );
   }
 
   findHash(ref: ArtifactRef): ContentHash | null {

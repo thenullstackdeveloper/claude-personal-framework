@@ -1,4 +1,4 @@
-import type { AgentId, CommandId, SkillId } from './identifiers.js';
+import type { AgentId, CommandId, InstructionsId, SkillId } from './identifiers.js';
 
 export type AgentSummary = {
   readonly id: AgentId;
@@ -12,5 +12,10 @@ export type SkillSummary = {
 
 export type CommandSummary = {
   readonly id: CommandId;
+  readonly description: string;
+};
+
+export type InstructionsSummary = {
+  readonly id: InstructionsId;
   readonly description: string;
 };

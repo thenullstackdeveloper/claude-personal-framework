@@ -6,7 +6,13 @@ import {
   type HookRule,
   Hooks,
 } from '../../domain/model/hooks.js';
-import { AgentId, CommandId, PresetName, SkillId } from '../../domain/model/identifiers.js';
+import {
+  AgentId,
+  CommandId,
+  InstructionsId,
+  PresetName,
+  SkillId,
+} from '../../domain/model/identifiers.js';
 import { Preset } from '../../domain/model/preset.js';
 import { Settings } from '../../domain/model/settings.js';
 import { asStringOrArray, isObject, isStringArray } from './yaml-helpers.js';
@@ -158,12 +164,26 @@ export const parsePreset = (yamlText: string, name: string): Preset => {
     extends_ = value.map((s) => PresetName.of(s));
   }
 
+  const instructionsRaw = raw['instructions'];
+  let instructionsIds: readonly InstructionsId[] = [];
+  if (instructionsRaw !== undefined) {
+    if (typeof instructionsRaw !== 'string') {
+      throw new InvalidPresetError(
+        `preset "${name}": "instructions" must be a single id string (got ${JSON.stringify(
+          instructionsRaw,
+        )})`,
+      );
+    }
+    instructionsIds = [InstructionsId.of(instructionsRaw)];
+  }
+
   return Preset.of({
     name: presetName,
     extends_,
     agentIds: parseIdArray(raw['agents'], AgentId.of, name, 'agents'),
     skillIds: parseIdArray(raw['skills'], SkillId.of, name, 'skills'),
     commandIds: parseIdArray(raw['commands'], CommandId.of, name, 'commands'),
+    instructionsIds,
     settings: parseSettings(raw['settings'], name),
   });
 };

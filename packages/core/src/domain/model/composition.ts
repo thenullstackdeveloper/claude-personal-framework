@@ -1,5 +1,6 @@
 import type { Agent } from './agent.js';
 import type { Command } from './command.js';
+import type { Instructions } from './instructions.js';
 import type { Settings } from './settings.js';
 import type { Skill } from './skill.js';
 
@@ -9,6 +10,7 @@ export type CompositionInit = {
   readonly skills: readonly Skill[];
   readonly commands: readonly Command[];
   readonly settings: Settings;
+  readonly instructions: Instructions;
 };
 
 export class Composition {
@@ -18,6 +20,7 @@ export class Composition {
     public readonly skills: readonly Skill[],
     public readonly commands: readonly Command[],
     public readonly settings: Settings,
+    public readonly instructions: Instructions,
   ) {}
 
   static of(init: CompositionInit): Composition {
@@ -27,6 +30,7 @@ export class Composition {
       init.skills,
       init.commands,
       init.settings,
+      init.instructions,
     );
   }
 }

@@ -1,6 +1,7 @@
 import type { Agent } from '../../domain/model/agent.js';
 import type { Command } from '../../domain/model/command.js';
 import type { AgentId, CommandId, SkillId } from '../../domain/model/identifiers.js';
+import type { Instructions } from '../../domain/model/instructions.js';
 import type { Settings } from '../../domain/model/settings.js';
 import type { Skill } from '../../domain/model/skill.js';
 
@@ -25,4 +26,17 @@ export interface WriterPort {
    * the file does not exist.
    */
   deleteSettings(): Promise<void>;
+
+  /**
+   * Materializes the project-level instructions as `.claude/CLAUDE.md`.
+   * The caller is responsible for not calling this with empty
+   * `Instructions` — use {@link deleteInstructions} in that case.
+   */
+  writeInstructions(instructions: Instructions): Promise<void>;
+
+  /**
+   * Removes `.claude/CLAUDE.md` if present. Idempotent: no error if the
+   * file does not exist.
+   */
+  deleteInstructions(): Promise<void>;
 }

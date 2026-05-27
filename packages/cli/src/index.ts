@@ -140,6 +140,13 @@ const main = async (): Promise<void> => {
 };
 
 main().catch((err) => {
-  process.stderr.write(`Error: ${(err as Error).message}\n`);
+  const json = process.argv.includes('--json');
+  const e = err as Error & { code?: string };
+  if (json) {
+    const payload = { error: { code: e.code ?? 'UNKNOWN', message: e.message } };
+    process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+  } else {
+    process.stderr.write(`Error: ${e.message}\n`);
+  }
   process.exit(1);
 });

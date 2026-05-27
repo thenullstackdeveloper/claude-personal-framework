@@ -3,6 +3,7 @@ import { InvalidContentHashError, InvalidLockfileError } from '../../domain/erro
 import { ArtifactRef } from '../../domain/model/artifact-ref.js';
 import { ContentHash } from '../../domain/model/content-hash.js';
 import { AgentId, PresetName, SkillId } from '../../domain/model/identifiers.js';
+import { Instructions } from '../../domain/model/instructions.js';
 import { Lockfile } from '../../domain/model/lockfile.js';
 import { Settings } from '../../domain/model/settings.js';
 import { parseLockfile, serializeLockfile } from './parse-lockfile.js';
@@ -113,6 +114,7 @@ describe('serializeLockfile', () => {
         },
       ],
       settings: Settings.of({ allow: ['Bash(ls)'], deny: [] }),
+      instructions: Instructions.empty(),
     });
 
     const json = serializeLockfile(original);
@@ -126,11 +128,54 @@ describe('serializeLockfile', () => {
     expect(restored.settings.permissions.allow).toEqual(['Bash(ls)']);
   });
 
+  it('round-trips instructions content + hash', () => {
+    const original = Lockfile.of({
+      presetName: PresetName.of('p'),
+      artifacts: [],
+      settings: Settings.empty(),
+      instructions: Instructions.of('hello world'),
+    });
+    const json = serializeLockfile(original);
+    const parsed = JSON.parse(json);
+    expect(parsed.instructions).toEqual({ content: 'hello world' });
+    expect(parsed.instructionsHash).toMatch(/^[a-f0-9]{64}$/);
+
+    const restored = parseLockfile(json);
+    expect(restored.instructions.content).toBe('hello world');
+    expect(restored.instructionsHash.equals(original.instructionsHash)).toBe(true);
+  });
+
+  it('omits the "instructions" section but always emits "instructionsHash" when empty', () => {
+    const lockfile = Lockfile.of({
+      presetName: PresetName.of('p'),
+      artifacts: [],
+      settings: Settings.empty(),
+      instructions: Instructions.empty(),
+    });
+    const json = serializeLockfile(lockfile);
+    const parsed = JSON.parse(json);
+    expect(parsed.instructions).toBeUndefined();
+    expect(parsed.instructionsHash).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('back-compat: parses a Bloque-1 lockfile (no instructions / instructionsHash)', () => {
+    const json = JSON.stringify({
+      version: 1,
+      presetName: 'p',
+      artifacts: [],
+      settings: { permissions: { allow: [], deny: [] } },
+    });
+    const lockfile = parseLockfile(json);
+    expect(lockfile.instructions.isEmpty()).toBe(true);
+    expect(lockfile.instructionsHash.toString()).toMatch(/^[a-f0-9]{64}$/);
+  });
+
   it('ends with a trailing newline (POSIX-friendly)', () => {
     const lockfile = Lockfile.of({
       presetName: PresetName.of('p'),
       artifacts: [],
       settings: Settings.empty(),
+      instructions: Instructions.empty(),
     });
     expect(serializeLockfile(lockfile).endsWith('\n')).toBe(true);
   });

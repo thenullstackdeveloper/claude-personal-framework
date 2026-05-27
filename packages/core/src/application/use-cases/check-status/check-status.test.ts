@@ -10,6 +10,7 @@ import {
   PresetName,
   type SkillId,
 } from '../../../domain/model/identifiers.js';
+import { Instructions } from '../../../domain/model/instructions.js';
 import { Lockfile } from '../../../domain/model/lockfile.js';
 import { Preset } from '../../../domain/model/preset.js';
 import type { ProjectManifest } from '../../../domain/model/project-manifest.js';
@@ -36,6 +37,9 @@ class InMemoryCatalog implements CatalogPort {
   async listCommands() {
     return [];
   }
+  async listInstructions() {
+    return [];
+  }
   async readAgent(id: AgentId): Promise<Agent> {
     const content = this.agents.get(id.toString());
     if (content === undefined) throw new ArtifactNotFoundError(`missing ${id}`);
@@ -46,6 +50,9 @@ class InMemoryCatalog implements CatalogPort {
   }
   async readCommand(id: CommandId): Promise<Command> {
     throw new ArtifactNotFoundError(`no commands in fake: ${id}`);
+  }
+  async readInstructions(): Promise<Instructions> {
+    throw new ArtifactNotFoundError('no instructions in fake');
   }
 }
 
@@ -96,6 +103,7 @@ describe('checkStatus use case', () => {
       presetName: PresetName.of('base'),
       artifacts: [{ ref: ArtifactRef.agent(AgentId.of('a')), contentHash: ContentHash.of('x') }],
       settings: Settings.empty(),
+      instructions: Instructions.empty(),
     });
 
     const catalog = new InMemoryCatalog(
@@ -121,6 +129,7 @@ describe('checkStatus use case', () => {
       presetName: PresetName.of('base'),
       artifacts: [{ ref: ArtifactRef.agent(AgentId.of('a')), contentHash: ContentHash.of('old') }],
       settings: Settings.empty(),
+      instructions: Instructions.empty(),
     });
 
     const catalog = new InMemoryCatalog(
@@ -143,6 +152,7 @@ describe('checkStatus use case', () => {
       presetName: PresetName.of('base'),
       artifacts: [],
       settings: Settings.empty(),
+      instructions: Instructions.empty(),
     });
     lockfileStore.current = initialLockfile;
 

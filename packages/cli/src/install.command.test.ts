@@ -101,6 +101,7 @@ describe('formatInstallReport', () => {
       skills: ['hexagonal-rn'],
       commands: [],
       settings: false,
+      instructions: false,
     });
     expect(out).toContain('Installed preset "react-native"');
     expect(out).toContain('Agents (2):');
@@ -116,6 +117,7 @@ describe('formatInstallReport', () => {
       skills: [],
       commands: [],
       settings: false,
+      instructions: false,
     });
     expect(out).toContain('(no artifacts to install)');
   });
@@ -127,8 +129,22 @@ describe('formatInstallReport', () => {
       skills: [],
       commands: [],
       settings: true,
+      instructions: false,
     });
     expect(out).toContain('Settings: .claude/settings.json written.');
+    expect(out).not.toContain('(no artifacts to install)');
+  });
+
+  it('reports instructions when written', () => {
+    const out = formatInstallReport({
+      presetName: 'react-native',
+      agents: [],
+      skills: [],
+      commands: [],
+      settings: false,
+      instructions: true,
+    });
+    expect(out).toContain('Instructions: .claude/CLAUDE.md written.');
     expect(out).not.toContain('(no artifacts to install)');
   });
 });
@@ -141,6 +157,7 @@ describe('formatInstallReportJson', () => {
       skills: ['hexagonal-rn'],
       commands: [],
       settings: false,
+      instructions: false,
     };
     const out = formatInstallReportJson(report);
     expect(JSON.parse(out)).toEqual(report);

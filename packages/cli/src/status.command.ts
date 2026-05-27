@@ -31,6 +31,7 @@ export type StatusCommandReport = {
   readonly removed: readonly StatusArtifact[];
   readonly unchanged: readonly StatusArtifact[];
   readonly settings: StatusSingleton;
+  readonly instructions: StatusSingleton;
 };
 
 export const runStatus = async (args: StatusCommandArgs): Promise<StatusCommandReport> => {
@@ -65,6 +66,7 @@ export const runStatus = async (args: StatusCommandArgs): Promise<StatusCommandR
     removed: result.drift.removed.map((r) => ({ type: r.type, id: r.id.toString() })),
     unchanged: result.drift.unchanged.map((r) => ({ type: r.type, id: r.id.toString() })),
     settings: toStatusSingleton(result.drift.settings),
+    instructions: toStatusSingleton(result.drift.instructions),
   };
 };
 
@@ -110,12 +112,14 @@ export const formatStatusReport = (report: StatusCommandReport): string => {
   renderUpdates(report.updated, lines);
   renderSection('Removed', report.removed, lines);
   renderSection('Unchanged', report.unchanged, lines);
-  renderSettingsDrift(report.settings, lines);
+  renderSingletonDrift('Settings', '.claude/settings.json', report.settings, lines);
+  renderSingletonDrift('Instructions', '.claude/CLAUDE.md', report.instructions, lines);
 
   const hasArtifactDrift =
     report.added.length > 0 || report.updated.length > 0 || report.removed.length > 0;
   const settingsChanged = report.settings.kind !== 'unchanged';
-  if (!hasArtifactDrift && !settingsChanged) {
+  const instructionsChanged = report.instructions.kind !== 'unchanged';
+  if (!hasArtifactDrift && !settingsChanged && !instructionsChanged) {
     if (report.unchanged.length === 0) {
       lines.push('\n(no artifacts in the resolved preset)');
     } else {
@@ -126,19 +130,19 @@ export const formatStatusReport = (report: StatusCommandReport): string => {
   return lines.join('\n');
 };
 
-const renderSettingsDrift = (s: StatusSingleton, lines: string[]) => {
+const renderSingletonDrift = (label: string, path: string, s: StatusSingleton, lines: string[]) => {
   if (s.kind === 'unchanged') return;
   if (s.kind === 'added') {
-    lines.push('\nSettings: added (will write .claude/settings.json).');
+    lines.push(`\n${label}: added (will write ${path}).`);
     return;
   }
   if (s.kind === 'removed') {
-    lines.push('\nSettings: removed (will delete .claude/settings.json).');
+    lines.push(`\n${label}: removed (will delete ${path}).`);
     lines.push(`  was: ${s.oldSha.slice(0, 12)}…`);
     return;
   }
   // updated
-  lines.push('\nSettings: updated.');
+  lines.push(`\n${label}: updated.`);
   lines.push(`  ${s.oldSha.slice(0, 12)}…  →  ${s.newSha.slice(0, 12)}…`);
 };
 

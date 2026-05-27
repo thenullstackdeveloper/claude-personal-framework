@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Agent } from '../../domain/model/agent.js';
 import { Command } from '../../domain/model/command.js';
 import { AgentId, CommandId, SkillId } from '../../domain/model/identifiers.js';
+import { Instructions } from '../../domain/model/instructions.js';
 import { Skill } from '../../domain/model/skill.js';
 import { ClaudeWriter } from './claude-writer.js';
 
@@ -95,6 +96,35 @@ describe('ClaudeWriter', () => {
       await writer.deleteAgent(AgentId.of('a'));
       const settings = await readFile(claudePath('settings.local.json'), 'utf-8');
       expect(settings).toBe('{}');
+    });
+  });
+
+  describe('writeInstructions / deleteInstructions', () => {
+    it('writes the content verbatim to .claude/CLAUDE.md', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeInstructions(Instructions.of('# project\n\nhello'));
+      const content = await readFile(claudePath('CLAUDE.md'), 'utf-8');
+      expect(content).toBe('# project\n\nhello');
+    });
+
+    it('overwrites an existing CLAUDE.md', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeInstructions(Instructions.of('first'));
+      await writer.writeInstructions(Instructions.of('second'));
+      const content = await readFile(claudePath('CLAUDE.md'), 'utf-8');
+      expect(content).toBe('second');
+    });
+
+    it('deleteInstructions removes the file', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeInstructions(Instructions.of('x'));
+      await writer.deleteInstructions();
+      await expect(stat(claudePath('CLAUDE.md'))).rejects.toThrow();
+    });
+
+    it('deleteInstructions is idempotent (ENOENT swallowed)', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await expect(writer.deleteInstructions()).resolves.toBeUndefined();
     });
   });
 });

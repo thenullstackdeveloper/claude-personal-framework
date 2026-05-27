@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CyclicExtendsError, PresetNotFoundError } from '../errors/domain-error.js';
-import { AgentId, CommandId, PresetName, SkillId } from '../model/identifiers.js';
+import { AgentId, CommandId, InstructionsId, PresetName, SkillId } from '../model/identifiers.js';
 import { Preset } from '../model/preset.js';
 import { Settings } from '../model/settings.js';
 import { resolveExtends } from './resolve-extends.js';
@@ -12,6 +12,7 @@ const preset = (
     agents: string[];
     skills: string[];
     commands: string[];
+    instructions: string[];
     settings: Settings;
   }> = {},
 ) =>
@@ -21,6 +22,7 @@ const preset = (
     agentIds: (init.agents ?? []).map((n) => AgentId.of(n)),
     skillIds: (init.skills ?? []).map((n) => SkillId.of(n)),
     commandIds: (init.commands ?? []).map((n) => CommandId.of(n)),
+    instructionsIds: (init.instructions ?? []).map((n) => InstructionsId.of(n)),
     ...(init.settings && { settings: init.settings }),
   });
 
@@ -73,6 +75,16 @@ describe('resolveExtends', () => {
     const bottom = preset('bottom', { extends_: ['left', 'right'], agents: ['b'] });
     const resolved = resolveExtends([base, left, right, bottom], PresetName.of('bottom'));
     expect(resolved.agentIds.map(String)).toEqual(['common', 'l', 'r', 'b']);
+  });
+
+  it('accumulates instructionsIds parent-then-child and deduplicates first-wins', () => {
+    const base = preset('base', { instructions: ['intro', 'shared'] });
+    const child = preset('child', {
+      extends_: ['base'],
+      instructions: ['shared', 'conventions'],
+    });
+    const resolved = resolveExtends([base, child], PresetName.of('child'));
+    expect(resolved.instructionsIds.map(String)).toEqual(['intro', 'shared', 'conventions']);
   });
 
   it('merges settings from parent and child', () => {

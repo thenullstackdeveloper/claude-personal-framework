@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ArtifactRef } from './artifact-ref.js';
 import { ContentHash } from './content-hash.js';
 import { AgentId, PresetName, SkillId } from './identifiers.js';
+import { Instructions } from './instructions.js';
 import { LOCKFILE_VERSION, Lockfile } from './lockfile.js';
 import { Settings } from './settings.js';
 
@@ -16,6 +17,7 @@ describe('Lockfile', () => {
       presetName: PresetName.of('base'),
       artifacts: [{ ref: ArtifactRef.agent(AgentId.of('foo')), contentHash: hash }],
       settings: Settings.of({ allow: ['Bash(ls)'] }),
+      instructions: Instructions.empty(),
     });
     expect(lockfile.presetName.toString()).toBe('base');
     expect(lockfile.artifacts).toHaveLength(1);
@@ -32,6 +34,7 @@ describe('Lockfile', () => {
         { ref: ArtifactRef.skill(SkillId.of('bar')), contentHash: s1Hash },
       ],
       settings: Settings.empty(),
+      instructions: Instructions.empty(),
     });
 
     it('returns the hash for a matching ref', () => {

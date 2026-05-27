@@ -1,5 +1,11 @@
 import { CyclicExtendsError, PresetNotFoundError } from '../errors/domain-error.js';
-import type { AgentId, CommandId, PresetName, SkillId } from '../model/identifiers.js';
+import type {
+  AgentId,
+  CommandId,
+  InstructionsId,
+  PresetName,
+  SkillId,
+} from '../model/identifiers.js';
 import { Preset } from '../model/preset.js';
 import { Settings } from '../model/settings.js';
 import { dedupe } from './dedupe.js';
@@ -8,6 +14,7 @@ type Accumulator = {
   agentIds: readonly AgentId[];
   skillIds: readonly SkillId[];
   commandIds: readonly CommandId[];
+  instructionsIds: readonly InstructionsId[];
   settings: Settings;
 };
 
@@ -15,6 +22,7 @@ const empty: Accumulator = {
   agentIds: [],
   skillIds: [],
   commandIds: [],
+  instructionsIds: [],
   settings: Settings.empty(),
 };
 
@@ -44,6 +52,7 @@ export function resolveExtends(catalog: readonly Preset[], targetName: PresetNam
         agentIds: [...acc.agentIds, ...parent.agentIds],
         skillIds: [...acc.skillIds, ...parent.skillIds],
         commandIds: [...acc.commandIds, ...parent.commandIds],
+        instructionsIds: [...acc.instructionsIds, ...parent.instructionsIds],
         settings: acc.settings.merge(parent.settings),
       };
     }
@@ -52,6 +61,7 @@ export function resolveExtends(catalog: readonly Preset[], targetName: PresetNam
       agentIds: [...acc.agentIds, ...preset.agentIds],
       skillIds: [...acc.skillIds, ...preset.skillIds],
       commandIds: [...acc.commandIds, ...preset.commandIds],
+      instructionsIds: [...acc.instructionsIds, ...preset.instructionsIds],
       settings: acc.settings.merge(preset.settings),
     };
 
@@ -67,6 +77,7 @@ export function resolveExtends(catalog: readonly Preset[], targetName: PresetNam
     agentIds: dedupe(resolved.agentIds),
     skillIds: dedupe(resolved.skillIds),
     commandIds: dedupe(resolved.commandIds),
+    instructionsIds: dedupe(resolved.instructionsIds),
     settings: resolved.settings,
   });
 }
