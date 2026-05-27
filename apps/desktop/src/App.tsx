@@ -1,6 +1,6 @@
 import { ask, open } from '@tauri-apps/plugin-dialog';
 import { Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CatalogView } from './components/catalog-view';
 import { InstallReport } from './components/install-report';
 import { SetupForm } from './components/setup-form';
@@ -8,8 +8,10 @@ import { StatusView } from './components/status-view';
 import {
   type CatalogReport,
   type InstallReport as InstallReportData,
+  type PathDetection,
   type StatusReport,
   detectPath,
+  initialize,
   install,
   listCatalog,
   status,
@@ -21,6 +23,11 @@ type InstallOutcome =
   | { status: 'success'; data: InstallReportData }
   | { status: 'error'; error: string };
 
+type InitOutcome =
+  | { status: 'idle' }
+  | { status: 'success'; presetName: string; manifestPath: string }
+  | { status: 'error'; error: string };
+
 function App() {
   const [frameworkRoot, setFrameworkRoot] = usePersistedState('cfw.frameworkRoot', '');
   const [projectRoot, setProjectRoot] = usePersistedState('cfw.projectRoot', '');
@@ -29,12 +36,37 @@ function App() {
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
 
+  const [projectDetection, setProjectDetection] = useState<PathDetection | null>(null);
+
   const [statusReport, setStatusReport] = useState<StatusReport | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
 
   const [installOutcome, setInstallOutcome] = useState<InstallOutcome>({ status: 'idle' });
   const [installing, setInstalling] = useState(false);
+
+  const [initOutcome, setInitOutcome] = useState<InitOutcome>({ status: 'idle' });
+  const [initializing, setInitializing] = useState(false);
+
+  // Re-detect project role whenever the project root changes. Best-effort:
+  // a failed detection clears the cached value rather than surfacing.
+  useEffect(() => {
+    if (!projectRoot) {
+      setProjectDetection(null);
+      return;
+    }
+    let cancelled = false;
+    detectPath(projectRoot)
+      .then((d) => {
+        if (!cancelled) setProjectDetection(d);
+      })
+      .catch(() => {
+        if (!cancelled) setProjectDetection(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectRoot]);
 
   const handleBrowseFramework = async () => {
     const selected = await open({
@@ -46,7 +78,6 @@ function App() {
     if (typeof selected !== 'string') return;
     setFrameworkRoot(selected);
 
-    // Smart fill is best-effort: if detection fails, just skip it.
     if (!projectRoot) {
       try {
         const detection = await detectPath(selected);
@@ -67,13 +98,12 @@ function App() {
     if (typeof selected !== 'string') return;
     setProjectRoot(selected);
 
-    // Smart fill is best-effort: if detection fails, just skip it.
     if (!frameworkRoot) {
       try {
         const detection = await detectPath(selected);
         if (detection.isFramework) setFrameworkRoot(selected);
       } catch {
-        // ignore — detection is a convenience, not required
+        // ignore
       }
     }
   };
@@ -106,6 +136,30 @@ function App() {
     }
   };
 
+  const handleInitialize = async (presetName: string) => {
+    setInitializing(true);
+    setInitOutcome({ status: 'idle' });
+    try {
+      const data = await initialize(frameworkRoot, projectRoot, presetName);
+      setInitOutcome({
+        status: 'success',
+        presetName: data.presetName,
+        manifestPath: data.manifestPath,
+      });
+      // Refresh detection so the UI flips to "Install" mode.
+      try {
+        const fresh = await detectPath(projectRoot);
+        setProjectDetection(fresh);
+      } catch {
+        // ignore
+      }
+    } catch (e) {
+      setInitOutcome({ status: 'error', error: toErrorMessage(e) });
+    } finally {
+      setInitializing(false);
+    }
+  };
+
   const handleInstall = async () => {
     const confirmMsg = buildConfirmMessage(projectRoot, statusReport);
     const confirmed = await ask(confirmMsg, {
@@ -121,7 +175,6 @@ function App() {
     try {
       const data = await install(frameworkRoot, projectRoot);
       setInstallOutcome({ status: 'success', data });
-      // Refresh status after install so the user sees the clean state.
       try {
         const fresh = await status(frameworkRoot, projectRoot);
         setStatusReport(fresh);
@@ -136,6 +189,7 @@ function App() {
   };
 
   const dismissInstallOutcome = () => setInstallOutcome({ status: 'idle' });
+  const dismissInitOutcome = () => setInitOutcome({ status: 'idle' });
   const dismissStatus = () => {
     setStatusReport(null);
     setStatusError(null);
@@ -143,7 +197,11 @@ function App() {
 
   const hasAnyPath = frameworkRoot !== '' || projectRoot !== '';
   const showEmptyState =
-    !hasAnyPath && !catalog && !statusReport && installOutcome.status === 'idle';
+    !hasAnyPath &&
+    !catalog &&
+    !statusReport &&
+    installOutcome.status === 'idle' &&
+    initOutcome.status === 'idle';
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -165,10 +223,49 @@ function App() {
           onLoadCatalog={handleLoadCatalog}
           onCheckStatus={handleCheckStatus}
           onInstall={handleInstall}
+          onInitialize={handleInitialize}
           loadingCatalog={loadingCatalog}
           checkingStatus={checkingStatus}
           installing={installing}
+          initializing={initializing}
+          projectDetection={projectDetection}
+          presets={catalog?.presets ?? []}
         />
+
+        {initOutcome.status === 'success' && (
+          <section className="bg-emerald-950/40 border border-emerald-900 rounded-lg p-4 text-sm text-emerald-100 flex items-start justify-between gap-4">
+            <div>
+              <strong className="font-semibold">Project initialized.</strong>{' '}
+              <span className="text-emerald-200/80">
+                Preset <span className="font-mono">{initOutcome.presetName}</span>, manifest at{' '}
+                <span className="font-mono text-xs">{initOutcome.manifestPath}</span>. You can
+                install now.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={dismissInitOutcome}
+              className="text-emerald-300/80 hover:text-emerald-100 text-xs"
+            >
+              dismiss
+            </button>
+          </section>
+        )}
+        {initOutcome.status === 'error' && (
+          <section className="bg-red-950/40 border border-red-900 rounded-lg p-4 text-sm text-red-200 flex items-start justify-between gap-4">
+            <div>
+              <strong className="font-semibold">Initialize failed: </strong>
+              <span className="font-mono text-xs text-red-300/80">{initOutcome.error}</span>
+            </div>
+            <button
+              type="button"
+              onClick={dismissInitOutcome}
+              className="text-red-300/80 hover:text-red-100 text-xs"
+            >
+              dismiss
+            </button>
+          </section>
+        )}
 
         {installOutcome.status === 'success' && (
           <InstallReport
@@ -232,7 +329,7 @@ function EmptyState() {
       <h2 className="text-sm font-semibold text-zinc-400">No paths configured yet</h2>
       <p className="text-xs text-zinc-500 max-w-md mx-auto">
         Pick a framework root and a project root above to load the catalog, check status against the
-        last install, or install a preset.
+        last install, initialize a brand-new project, or install a preset.
       </p>
     </section>
   );

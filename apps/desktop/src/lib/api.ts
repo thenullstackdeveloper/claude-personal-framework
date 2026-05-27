@@ -68,3 +68,17 @@ export type StatusReport = {
 export const status = (frameworkRoot: string, projectRoot: string): Promise<StatusReport> => {
   return invoke<StatusReport>('status', { frameworkRoot, projectRoot });
 };
+
+export type InitReport = {
+  readonly projectRoot: string;
+  readonly presetName: string;
+  readonly manifestPath: string;
+};
+
+export const initialize = (
+  frameworkRoot: string,
+  projectRoot: string,
+  presetName: string,
+): Promise<InitReport> => {
+  return invoke<InitReport>('initialize', { frameworkRoot, projectRoot, presetName });
+};

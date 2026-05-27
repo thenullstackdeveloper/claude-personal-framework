@@ -1,4 +1,6 @@
-import { FolderOpen, FolderSearch, GitCompare, Play, RefreshCw } from 'lucide-react';
+import { FolderOpen, FolderSearch, GitCompare, Play, RefreshCw, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { ListPreset, PathDetection } from '../lib/api';
 import { cn } from '../lib/utils';
 
 type SetupFormProps = {
@@ -11,29 +13,47 @@ type SetupFormProps = {
   readonly onLoadCatalog: () => void;
   readonly onCheckStatus: () => void;
   readonly onInstall: () => void;
+  readonly onInitialize: (presetName: string) => void;
   readonly loadingCatalog: boolean;
   readonly checkingStatus: boolean;
   readonly installing: boolean;
+  readonly initializing: boolean;
+  readonly projectDetection: PathDetection | null;
+  readonly presets: readonly ListPreset[];
 };
 
-export function SetupForm({
-  frameworkRoot,
-  projectRoot,
-  onFrameworkRootChange,
-  onProjectRootChange,
-  onBrowseFramework,
-  onBrowseProject,
-  onLoadCatalog,
-  onCheckStatus,
-  onInstall,
-  loadingCatalog,
-  checkingStatus,
-  installing,
-}: SetupFormProps) {
-  const busy = installing || loadingCatalog || checkingStatus;
-  const canInstall = !busy && frameworkRoot.trim() !== '' && projectRoot.trim() !== '';
-  const canLoad = !busy && frameworkRoot.trim() !== '';
-  const canStatus = !busy && frameworkRoot.trim() !== '' && projectRoot.trim() !== '';
+export function SetupForm(props: SetupFormProps) {
+  const {
+    frameworkRoot,
+    projectRoot,
+    onFrameworkRootChange,
+    onProjectRootChange,
+    onBrowseFramework,
+    onBrowseProject,
+    onLoadCatalog,
+    onCheckStatus,
+    onInstall,
+    onInitialize,
+    loadingCatalog,
+    checkingStatus,
+    installing,
+    initializing,
+    projectDetection,
+    presets,
+  } = props;
+
+  const busy = installing || loadingCatalog || checkingStatus || initializing;
+  const hasFramework = frameworkRoot.trim() !== '';
+  const hasProject = projectRoot.trim() !== '';
+  const canLoad = !busy && hasFramework;
+
+  // Initialize mode kicks in when the project is well-defined as "not a
+  // project yet" — the detection ran and reported isProject=false.
+  const needsInitialize = projectDetection !== null && projectDetection.isProject === false;
+  const isProject = projectDetection !== null && projectDetection.isProject === true;
+
+  const canInstall = !busy && hasFramework && hasProject && isProject;
+  const canStatus = !busy && hasFramework && hasProject && isProject;
 
   return (
     <section className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 space-y-4">
@@ -49,7 +69,7 @@ export function SetupForm({
         />
         <PathField
           label="Project root"
-          hint="Pick the target project — the folder that contains a .claude-fw.yaml. The install writes into its .claude/."
+          hint="Pick the target project. If it has no .claude-fw.yaml yet, you can initialize it below."
           value={projectRoot}
           onChange={onProjectRootChange}
           onBrowse={onBrowseProject}
@@ -85,7 +105,85 @@ export function SetupForm({
           {installing ? 'Installing…' : 'Install'}
         </button>
       </div>
+
+      {needsInitialize && (
+        <InitializeBlock
+          presets={presets}
+          initializing={initializing}
+          busy={busy}
+          onInitialize={onInitialize}
+        />
+      )}
     </section>
+  );
+}
+
+type InitializeBlockProps = {
+  readonly presets: readonly ListPreset[];
+  readonly initializing: boolean;
+  readonly busy: boolean;
+  readonly onInitialize: (presetName: string) => void;
+};
+
+function InitializeBlock({ presets, initializing, busy, onInitialize }: InitializeBlockProps) {
+  const [selected, setSelected] = useState<string>('');
+
+  // Default the selection to the first preset whenever the list changes.
+  useEffect(() => {
+    if (presets.length > 0 && !presets.some((p) => p.name === selected)) {
+      const first = presets[0];
+      if (first) setSelected(first.name);
+    }
+    if (presets.length === 0) setSelected('');
+  }, [presets, selected]);
+
+  const hasPresets = presets.length > 0;
+  const canInit = hasPresets && selected !== '' && !busy;
+
+  return (
+    <div className="border-t border-zinc-800 pt-4 space-y-3">
+      <div className="flex items-start gap-2">
+        <Sparkles className="w-4 h-4 text-violet-400 mt-0.5 shrink-0" />
+        <div className="text-sm">
+          <p className="font-semibold text-zinc-200">Project not initialized</p>
+          <p className="text-xs text-zinc-500">
+            No <span className="font-mono">.claude-fw.yaml</span> in this folder. Pick a preset to
+            create one and unlock Install.
+          </p>
+        </div>
+      </div>
+
+      {!hasPresets ? (
+        <p className="text-xs text-zinc-500 italic">
+          Click <span className="font-medium">Load catalog</span> to see the available presets.
+        </p>
+      ) : (
+        <div className="flex gap-2 items-center">
+          <select
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            disabled={busy}
+            className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm font-mono text-zinc-100 focus:border-violet-500 focus:outline-none disabled:opacity-50"
+          >
+            {presets.map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.name}
+                {p.extends.length > 0 ? ` (extends ${p.extends.join(', ')})` : ''}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => onInitialize(selected)}
+            disabled={!canInit}
+            className={buttonClass('primary', !canInit)}
+          >
+            <Sparkles className="w-4 h-4" />
+            {initializing ? 'Initializing…' : 'Initialize'}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

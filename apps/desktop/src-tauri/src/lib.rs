@@ -88,6 +88,33 @@ fn detect_path(path: String) -> Result<PathDetection, String> {
     serde_json::from_str(&output).map_err(|e| format!("Failed to parse detect JSON: {}", e))
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InitReport {
+    project_root: String,
+    preset_name: String,
+    manifest_path: String,
+}
+
+#[tauri::command]
+fn initialize(
+    framework_root: String,
+    project_root: String,
+    preset_name: String,
+) -> Result<InitReport, String> {
+    let output = run_cli(&[
+        "init",
+        "--framework",
+        &framework_root,
+        "--project",
+        &project_root,
+        "--preset",
+        &preset_name,
+        "--json",
+    ])?;
+    serde_json::from_str(&output).map_err(|e| format!("Failed to parse init JSON: {}", e))
+}
+
 #[tauri::command]
 fn install(framework_root: String, project_root: String) -> Result<InstallReport, String> {
     let output = run_cli(&[
@@ -151,6 +178,7 @@ pub fn run() {
             list_catalog,
             install,
             detect_path,
+            initialize,
             status
         ])
         .run(tauri::generate_context!())
