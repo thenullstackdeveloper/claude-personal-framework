@@ -62,15 +62,22 @@ class InMemoryCatalog implements CatalogPort {
 }
 
 class RecordingWriter implements WriterPort {
-  written: { agents: Agent[]; skills: Skill[]; commands: Command[] } = {
+  written: { agents: Agent[]; skills: Skill[]; commands: Command[]; settings: Settings[] } = {
     agents: [],
     skills: [],
     commands: [],
+    settings: [],
   };
-  deleted: { agents: AgentId[]; skills: SkillId[]; commands: CommandId[] } = {
+  deleted: {
+    agents: AgentId[];
+    skills: SkillId[];
+    commands: CommandId[];
+    settingsCount: number;
+  } = {
     agents: [],
     skills: [],
     commands: [],
+    settingsCount: 0,
   };
 
   async writeAgent(agent: Agent): Promise<void> {
@@ -90,6 +97,12 @@ class RecordingWriter implements WriterPort {
   }
   async deleteCommand(id: CommandId): Promise<void> {
     this.deleted.commands.push(id);
+  }
+  async writeSettings(settings: Settings): Promise<void> {
+    this.written.settings.push(settings);
+  }
+  async deleteSettings(): Promise<void> {
+    this.deleted.settingsCount++;
   }
 }
 

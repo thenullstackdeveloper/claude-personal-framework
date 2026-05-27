@@ -100,6 +100,7 @@ describe('formatInstallReport', () => {
       agents: ['docs-manager', 'pr-creator'],
       skills: ['hexagonal-rn'],
       commands: [],
+      settings: false,
     });
     expect(out).toContain('Installed preset "react-native"');
     expect(out).toContain('Agents (2):');
@@ -114,8 +115,21 @@ describe('formatInstallReport', () => {
       agents: [],
       skills: [],
       commands: [],
+      settings: false,
     });
     expect(out).toContain('(no artifacts to install)');
+  });
+
+  it('reports settings when written', () => {
+    const out = formatInstallReport({
+      presetName: 'react-native',
+      agents: [],
+      skills: [],
+      commands: [],
+      settings: true,
+    });
+    expect(out).toContain('Settings: .claude/settings.json written.');
+    expect(out).not.toContain('(no artifacts to install)');
   });
 });
 
@@ -126,6 +140,7 @@ describe('formatInstallReportJson', () => {
       agents: ['docs-manager', 'pr-creator'],
       skills: ['hexagonal-rn'],
       commands: [],
+      settings: false,
     };
     const out = formatInstallReportJson(report);
     expect(JSON.parse(out)).toEqual(report);

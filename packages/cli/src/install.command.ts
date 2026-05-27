@@ -16,6 +16,7 @@ export type InstallCommandReport = {
   readonly agents: readonly string[];
   readonly skills: readonly string[];
   readonly commands: readonly string[];
+  readonly settings: boolean;
 };
 
 export const runInstall = async (args: InstallCommandArgs): Promise<InstallCommandReport> => {
@@ -44,6 +45,7 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
     agents: result.written.agents.map(String),
     skills: result.written.skills.map(String),
     commands: result.written.commands.map(String),
+    settings: result.written.settings,
   };
 };
 
@@ -57,7 +59,9 @@ export const formatInstallReport = (report: InstallCommandReport): string => {
   section('Agents', report.agents);
   section('Skills', report.skills);
   section('Commands', report.commands);
-  if (report.agents.length + report.skills.length + report.commands.length === 0) {
+  if (report.settings) lines.push('  Settings: .claude/settings.json written.');
+  const totalArtifacts = report.agents.length + report.skills.length + report.commands.length;
+  if (totalArtifacts === 0 && !report.settings) {
     lines.push('  (no artifacts to install)');
   }
   return lines.join('\n');

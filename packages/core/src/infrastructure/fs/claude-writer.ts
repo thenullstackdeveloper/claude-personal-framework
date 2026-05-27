@@ -4,6 +4,7 @@ import type { WriterPort } from '../../application/ports/writer.port.js';
 import type { Agent } from '../../domain/model/agent.js';
 import type { Command } from '../../domain/model/command.js';
 import type { AgentId, CommandId, SkillId } from '../../domain/model/identifiers.js';
+import type { Settings } from '../../domain/model/settings.js';
 import type { Skill } from '../../domain/model/skill.js';
 
 const CLAUDE_DIR = '.claude';
@@ -11,6 +12,7 @@ const AGENTS_SUBDIR = 'agents';
 const SKILLS_SUBDIR = 'skills';
 const COMMANDS_SUBDIR = 'commands';
 const ARTIFACT_EXT = '.md';
+const SETTINGS_FILENAME = 'settings.json';
 
 const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
   return err instanceof Error && 'code' in err;
@@ -81,5 +83,31 @@ export class ClaudeWriter implements WriterPort {
 
   async deleteCommand(id: CommandId): Promise<void> {
     return this.deleteArtifact(COMMANDS_SUBDIR, id);
+  }
+
+  async writeSettings(settings: Settings): Promise<void> {
+    const dir = this.claudeDir();
+    await mkdir(dir, { recursive: true });
+    const payload: Record<string, unknown> = {};
+    const { permissions, hooks } = settings;
+    if (permissions.allow.length > 0 || permissions.deny.length > 0) {
+      payload['permissions'] = {
+        allow: permissions.allow,
+        deny: permissions.deny,
+      };
+    }
+    if (!hooks.isEmpty()) {
+      payload['hooks'] = hooks.toObject();
+    }
+    await writeFile(join(dir, SETTINGS_FILENAME), `${JSON.stringify(payload, null, 2)}\n`, 'utf-8');
+  }
+
+  async deleteSettings(): Promise<void> {
+    try {
+      await rm(join(this.claudeDir(), SETTINGS_FILENAME));
+    } catch (err) {
+      if (isErrnoException(err) && err.code === 'ENOENT') return;
+      throw err;
+    }
   }
 }

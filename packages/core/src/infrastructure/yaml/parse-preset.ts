@@ -1,9 +1,28 @@
 import { parse as parseYaml } from 'yaml';
 import { InvalidPresetError } from '../../domain/errors/domain-error.js';
+import {
+  type CommandHook,
+  type HookEvent,
+  type HookRule,
+  Hooks,
+} from '../../domain/model/hooks.js';
 import { AgentId, CommandId, PresetName, SkillId } from '../../domain/model/identifiers.js';
 import { Preset } from '../../domain/model/preset.js';
 import { Settings } from '../../domain/model/settings.js';
 import { asStringOrArray, isObject, isStringArray } from './yaml-helpers.js';
+
+const KNOWN_HOOK_EVENTS: ReadonlySet<HookEvent> = new Set<HookEvent>([
+  'PreToolUse',
+  'PostToolUse',
+  'UserPromptSubmit',
+  'SessionStart',
+  'SessionEnd',
+  'Stop',
+  'SubagentStop',
+  'PreCompact',
+  'PostCompact',
+  'Notification',
+]);
 
 const parseIdArray = <T>(
   raw: unknown,
@@ -26,19 +45,87 @@ const parseStringArray = (raw: unknown, presetName: string, field: string): read
   return raw;
 };
 
+const parseCommandHook = (raw: unknown, presetName: string, path: string): CommandHook => {
+  if (!isObject(raw)) {
+    throw new InvalidPresetError(`preset "${presetName}": "${path}" must be a map`);
+  }
+  if (raw['type'] !== 'command') {
+    throw new InvalidPresetError(
+      `preset "${presetName}": "${path}.type" must be "command" (got ${JSON.stringify(raw['type'])})`,
+    );
+  }
+  const command = raw['command'];
+  if (typeof command !== 'string' || command.length === 0) {
+    throw new InvalidPresetError(
+      `preset "${presetName}": "${path}.command" must be a non-empty string`,
+    );
+  }
+  const timeoutRaw = raw['timeout'];
+  if (timeoutRaw !== undefined && typeof timeoutRaw !== 'number') {
+    throw new InvalidPresetError(`preset "${presetName}": "${path}.timeout" must be a number`);
+  }
+  return timeoutRaw === undefined
+    ? { type: 'command', command }
+    : { type: 'command', command, timeout: timeoutRaw };
+};
+
+const parseHookRule = (raw: unknown, presetName: string, path: string): HookRule => {
+  if (!isObject(raw)) {
+    throw new InvalidPresetError(`preset "${presetName}": "${path}" must be a map`);
+  }
+  const matcher = raw['matcher'];
+  if (matcher !== undefined && typeof matcher !== 'string') {
+    throw new InvalidPresetError(`preset "${presetName}": "${path}.matcher" must be a string`);
+  }
+  const hooksRaw = raw['hooks'];
+  if (!Array.isArray(hooksRaw)) {
+    throw new InvalidPresetError(`preset "${presetName}": "${path}.hooks" must be a list`);
+  }
+  const hooks = hooksRaw.map((h, i) => parseCommandHook(h, presetName, `${path}.hooks[${i}]`));
+  return { matcher: matcher ?? '', hooks };
+};
+
+const parseHooks = (raw: unknown, presetName: string): Hooks => {
+  if (raw === undefined) return Hooks.empty();
+  if (!isObject(raw)) {
+    throw new InvalidPresetError(`preset "${presetName}": "settings.hooks" must be a map`);
+  }
+  const entries: Partial<Record<HookEvent, readonly HookRule[]>> = {};
+  for (const [event, value] of Object.entries(raw)) {
+    if (!KNOWN_HOOK_EVENTS.has(event as HookEvent)) {
+      throw new InvalidPresetError(
+        `preset "${presetName}": unknown hook event "${event}" in "settings.hooks"`,
+      );
+    }
+    if (!Array.isArray(value)) {
+      throw new InvalidPresetError(
+        `preset "${presetName}": "settings.hooks.${event}" must be a list of rules`,
+      );
+    }
+    entries[event as HookEvent] = value.map((rule, i) =>
+      parseHookRule(rule, presetName, `settings.hooks.${event}[${i}]`),
+    );
+  }
+  return Hooks.of(entries);
+};
+
 const parseSettings = (raw: unknown, presetName: string): Settings => {
   if (raw === undefined) return Settings.empty();
   if (!isObject(raw)) {
     throw new InvalidPresetError(`preset "${presetName}": "settings" must be a map`);
   }
   const perms = raw['permissions'];
-  if (perms === undefined) return Settings.empty();
-  if (!isObject(perms)) {
-    throw new InvalidPresetError(`preset "${presetName}": "settings.permissions" must be a map`);
+  let allow: readonly string[] = [];
+  let deny: readonly string[] = [];
+  if (perms !== undefined) {
+    if (!isObject(perms)) {
+      throw new InvalidPresetError(`preset "${presetName}": "settings.permissions" must be a map`);
+    }
+    allow = parseStringArray(perms['allow'], presetName, 'settings.permissions.allow');
+    deny = parseStringArray(perms['deny'], presetName, 'settings.permissions.deny');
   }
-  const allow = parseStringArray(perms['allow'], presetName, 'settings.permissions.allow');
-  const deny = parseStringArray(perms['deny'], presetName, 'settings.permissions.deny');
-  return Settings.of({ allow, deny });
+  const hooks = parseHooks(raw['hooks'], presetName);
+  return Settings.of({ permissions: { allow, deny }, hooks });
 };
 
 export const parsePreset = (yamlText: string, name: string): Preset => {

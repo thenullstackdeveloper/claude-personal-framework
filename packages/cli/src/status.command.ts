@@ -17,6 +17,12 @@ export type StatusUpdate = {
   readonly newSha: string;
 };
 
+export type StatusSingleton =
+  | { readonly kind: 'unchanged' }
+  | { readonly kind: 'added' }
+  | { readonly kind: 'removed'; readonly oldSha: string }
+  | { readonly kind: 'updated'; readonly oldSha: string; readonly newSha: string };
+
 export type StatusCommandReport = {
   readonly presetName: string;
   readonly hasLockfile: boolean;
@@ -24,6 +30,7 @@ export type StatusCommandReport = {
   readonly updated: readonly StatusUpdate[];
   readonly removed: readonly StatusArtifact[];
   readonly unchanged: readonly StatusArtifact[];
+  readonly settings: StatusSingleton;
 };
 
 export const runStatus = async (args: StatusCommandArgs): Promise<StatusCommandReport> => {
@@ -57,7 +64,22 @@ export const runStatus = async (args: StatusCommandArgs): Promise<StatusCommandR
     })),
     removed: result.drift.removed.map((r) => ({ type: r.type, id: r.id.toString() })),
     unchanged: result.drift.unchanged.map((r) => ({ type: r.type, id: r.id.toString() })),
+    settings: toStatusSingleton(result.drift.settings),
   };
+};
+
+const toStatusSingleton = (s: {
+  kind: 'unchanged' | 'added' | 'removed' | 'updated';
+  oldSha?: { toString(): string };
+  newSha?: { toString(): string };
+}): StatusSingleton => {
+  if (s.kind === 'unchanged') return { kind: 'unchanged' };
+  if (s.kind === 'added') return { kind: 'added' };
+  if (s.kind === 'removed' && s.oldSha) return { kind: 'removed', oldSha: s.oldSha.toString() };
+  if (s.kind === 'updated' && s.oldSha && s.newSha) {
+    return { kind: 'updated', oldSha: s.oldSha.toString(), newSha: s.newSha.toString() };
+  }
+  return { kind: 'unchanged' };
 };
 
 const renderSection = (label: string, items: readonly StatusArtifact[], lines: string[]) => {
@@ -88,8 +110,12 @@ export const formatStatusReport = (report: StatusCommandReport): string => {
   renderUpdates(report.updated, lines);
   renderSection('Removed', report.removed, lines);
   renderSection('Unchanged', report.unchanged, lines);
+  renderSettingsDrift(report.settings, lines);
 
-  if (report.added.length === 0 && report.updated.length === 0 && report.removed.length === 0) {
+  const hasArtifactDrift =
+    report.added.length > 0 || report.updated.length > 0 || report.removed.length > 0;
+  const settingsChanged = report.settings.kind !== 'unchanged';
+  if (!hasArtifactDrift && !settingsChanged) {
     if (report.unchanged.length === 0) {
       lines.push('\n(no artifacts in the resolved preset)');
     } else {
@@ -98,6 +124,22 @@ export const formatStatusReport = (report: StatusCommandReport): string => {
   }
 
   return lines.join('\n');
+};
+
+const renderSettingsDrift = (s: StatusSingleton, lines: string[]) => {
+  if (s.kind === 'unchanged') return;
+  if (s.kind === 'added') {
+    lines.push('\nSettings: added (will write .claude/settings.json).');
+    return;
+  }
+  if (s.kind === 'removed') {
+    lines.push('\nSettings: removed (will delete .claude/settings.json).');
+    lines.push(`  was: ${s.oldSha.slice(0, 12)}…`);
+    return;
+  }
+  // updated
+  lines.push('\nSettings: updated.');
+  lines.push(`  ${s.oldSha.slice(0, 12)}…  →  ${s.newSha.slice(0, 12)}…`);
 };
 
 export const formatStatusReportJson = (report: StatusCommandReport): string => {

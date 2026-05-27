@@ -1,8 +1,9 @@
 import { ArtifactRef } from '../model/artifact-ref.js';
 import type { Composition } from '../model/composition.js';
 import type { ContentHash } from '../model/content-hash.js';
-import type { DriftReport, DriftUpdate } from '../model/drift-report.js';
+import type { DriftReport, DriftUpdate, SingletonDrift } from '../model/drift-report.js';
 import type { Lockfile } from '../model/lockfile.js';
+import type { Settings } from '../model/settings.js';
 
 type RefWithHash = {
   readonly ref: ArtifactRef;
@@ -27,6 +28,19 @@ const refsFromComposition = (composition: Composition): readonly ArtifactRef[] =
   return refsWithHashesOf(composition).map((rh) => rh.ref);
 };
 
+const singletonDrift = (oldSha: ContentHash | null, newSettings: Settings): SingletonDrift => {
+  const isEmpty = newSettings.isEmpty();
+  if (oldSha === null) {
+    return isEmpty ? { kind: 'unchanged' } : { kind: 'added' };
+  }
+  if (isEmpty) {
+    return { kind: 'removed', oldSha };
+  }
+  const newSha = newSettings.contentHash();
+  if (oldSha.equals(newSha)) return { kind: 'unchanged' };
+  return { kind: 'updated', oldSha, newSha };
+};
+
 export const computeDrift = (lockfile: Lockfile | null, composition: Composition): DriftReport => {
   const currentRefsWithHashes = refsWithHashesOf(composition);
 
@@ -36,6 +50,7 @@ export const computeDrift = (lockfile: Lockfile | null, composition: Composition
       updated: [],
       removed: [],
       unchanged: [],
+      settings: composition.settings.isEmpty() ? { kind: 'unchanged' } : { kind: 'added' },
     };
   }
 
@@ -61,5 +76,14 @@ export const computeDrift = (lockfile: Lockfile | null, composition: Composition
     .map((a) => a.ref)
     .filter((lockedRef) => !currentRefs.some((cr) => ArtifactRef.equals(cr, lockedRef)));
 
-  return { added, updated, removed, unchanged };
+  // Settings drift: the lockfile carries the previous hash. We treat the
+  // *empty* settings as "not installed" — so going from non-empty to empty
+  // is a remove, and the previous hash was for empty (which is "{}") only
+  // if the lockfile was written before settings supported hooks. In that
+  // case the recorded settings is also empty and we resolve to unchanged.
+  const previousIsEmpty = lockfile.settings.isEmpty();
+  const previousHash = previousIsEmpty ? null : lockfile.settingsHash;
+  const settingsDrift = singletonDrift(previousHash, composition.settings);
+
+  return { added, updated, removed, unchanged, settings: settingsDrift };
 };

@@ -13,10 +13,6 @@
       "sha": "7b2f8c9dbce382308ec70ce9e2a13e8a19e03153a2e45325b67a61d98527e78e"
     }
   ],
-  "settings": {
-    "permissions": {
-      "allow": [],
-      "deny": []
-    }
-  }
+  "settings": {},
+  "settingsHash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
 }

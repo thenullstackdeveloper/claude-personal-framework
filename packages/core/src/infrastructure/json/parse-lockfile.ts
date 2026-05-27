@@ -1,9 +1,28 @@
 import { InvalidLockfileError } from '../../domain/errors/domain-error.js';
 import { ArtifactRef } from '../../domain/model/artifact-ref.js';
 import { ContentHash } from '../../domain/model/content-hash.js';
+import {
+  type CommandHook,
+  type HookEvent,
+  type HookRule,
+  Hooks,
+} from '../../domain/model/hooks.js';
 import { AgentId, CommandId, PresetName, SkillId } from '../../domain/model/identifiers.js';
 import { LOCKFILE_VERSION, type LockedArtifact, Lockfile } from '../../domain/model/lockfile.js';
 import { Settings } from '../../domain/model/settings.js';
+
+const KNOWN_HOOK_EVENTS: ReadonlySet<HookEvent> = new Set<HookEvent>([
+  'PreToolUse',
+  'PostToolUse',
+  'UserPromptSubmit',
+  'SessionStart',
+  'SessionEnd',
+  'Stop',
+  'SubagentStop',
+  'PreCompact',
+  'PostCompact',
+  'Notification',
+]);
 
 const isObject = (v: unknown): v is Record<string, unknown> => {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -35,28 +54,90 @@ const parseArtifact = (raw: unknown, index: number): LockedArtifact => {
   );
 };
 
+const parseCommandHook = (raw: unknown, path: string): CommandHook => {
+  if (!isObject(raw)) {
+    throw new InvalidLockfileError(`"${path}" must be an object`);
+  }
+  if (raw['type'] !== 'command') {
+    throw new InvalidLockfileError(`"${path}.type" must be "command"`);
+  }
+  if (typeof raw['command'] !== 'string') {
+    throw new InvalidLockfileError(`"${path}.command" must be a string`);
+  }
+  const timeout = raw['timeout'];
+  if (timeout !== undefined && typeof timeout !== 'number') {
+    throw new InvalidLockfileError(`"${path}.timeout" must be a number`);
+  }
+  return timeout === undefined
+    ? { type: 'command', command: raw['command'] }
+    : { type: 'command', command: raw['command'], timeout };
+};
+
+const parseHookRule = (raw: unknown, path: string): HookRule => {
+  if (!isObject(raw)) {
+    throw new InvalidLockfileError(`"${path}" must be an object`);
+  }
+  const matcher = raw['matcher'];
+  if (matcher !== undefined && typeof matcher !== 'string') {
+    throw new InvalidLockfileError(`"${path}.matcher" must be a string`);
+  }
+  const hooks = raw['hooks'];
+  if (!Array.isArray(hooks)) {
+    throw new InvalidLockfileError(`"${path}.hooks" must be a list`);
+  }
+  return {
+    matcher: matcher ?? '',
+    hooks: hooks.map((h, i) => parseCommandHook(h, `${path}.hooks[${i}]`)),
+  };
+};
+
+const parseHooks = (raw: unknown): Hooks => {
+  if (raw === undefined) return Hooks.empty();
+  if (!isObject(raw)) {
+    throw new InvalidLockfileError('"settings.hooks" must be an object');
+  }
+  const entries: Partial<Record<HookEvent, readonly HookRule[]>> = {};
+  for (const [event, value] of Object.entries(raw)) {
+    if (!KNOWN_HOOK_EVENTS.has(event as HookEvent)) {
+      throw new InvalidLockfileError(`unknown hook event "${event}" in "settings.hooks"`);
+    }
+    if (!Array.isArray(value)) {
+      throw new InvalidLockfileError(`"settings.hooks.${event}" must be a list`);
+    }
+    entries[event as HookEvent] = value.map((r, i) =>
+      parseHookRule(r, `settings.hooks.${event}[${i}]`),
+    );
+  }
+  return Hooks.of(entries);
+};
+
 const parseSettings = (raw: unknown): Settings => {
   if (raw === undefined) return Settings.empty();
   if (!isObject(raw)) {
     throw new InvalidLockfileError('"settings" must be an object');
   }
+
+  let allow: readonly string[] = [];
+  let deny: readonly string[] = [];
   const perms = raw['permissions'];
-  if (perms === undefined) return Settings.empty();
-  if (!isObject(perms)) {
-    throw new InvalidLockfileError('"settings.permissions" must be an object');
+  if (perms !== undefined) {
+    if (!isObject(perms)) {
+      throw new InvalidLockfileError('"settings.permissions" must be an object');
+    }
+    const allowRaw = perms['allow'];
+    const denyRaw = perms['deny'];
+    if (allowRaw !== undefined && !isStringArray(allowRaw)) {
+      throw new InvalidLockfileError('"settings.permissions.allow" must be a list of strings');
+    }
+    if (denyRaw !== undefined && !isStringArray(denyRaw)) {
+      throw new InvalidLockfileError('"settings.permissions.deny" must be a list of strings');
+    }
+    if (allowRaw) allow = allowRaw;
+    if (denyRaw) deny = denyRaw;
   }
-  const allow = perms['allow'];
-  const deny = perms['deny'];
-  if (allow !== undefined && !isStringArray(allow)) {
-    throw new InvalidLockfileError('"settings.permissions.allow" must be a list of strings');
-  }
-  if (deny !== undefined && !isStringArray(deny)) {
-    throw new InvalidLockfileError('"settings.permissions.deny" must be a list of strings');
-  }
-  return Settings.of({
-    ...(allow && { allow }),
-    ...(deny && { deny }),
-  });
+
+  const hooks = parseHooks(raw['hooks']);
+  return Settings.of({ permissions: { allow, deny }, hooks });
 };
 
 export const parseLockfile = (jsonText: string): Lockfile => {
@@ -90,10 +171,38 @@ export const parseLockfile = (jsonText: string): Lockfile => {
 
   const settings = parseSettings(raw['settings']);
 
-  return Lockfile.of({ presetName, artifacts, settings });
+  // settingsHash is optional for back-compat with lockfiles written before
+  // hooks landed. If present, validate it; otherwise compute from settings.
+  let settingsHash: ContentHash | undefined;
+  const settingsHashRaw = raw['settingsHash'];
+  if (settingsHashRaw !== undefined) {
+    if (typeof settingsHashRaw !== 'string') {
+      throw new InvalidLockfileError('"settingsHash" must be a string');
+    }
+    settingsHash = ContentHash.fromHex(settingsHashRaw);
+  }
+
+  return Lockfile.of({
+    presetName,
+    artifacts,
+    settings,
+    ...(settingsHash && { settingsHash }),
+  });
 };
 
 export const serializeLockfile = (lockfile: Lockfile): string => {
+  const settingsObj: Record<string, unknown> = {};
+  const { permissions, hooks } = lockfile.settings;
+  if (permissions.allow.length > 0 || permissions.deny.length > 0) {
+    settingsObj['permissions'] = {
+      allow: permissions.allow,
+      deny: permissions.deny,
+    };
+  }
+  if (!hooks.isEmpty()) {
+    settingsObj['hooks'] = hooks.toObject();
+  }
+
   const out = {
     version: LOCKFILE_VERSION,
     presetName: lockfile.presetName.toString(),
@@ -102,12 +211,8 @@ export const serializeLockfile = (lockfile: Lockfile): string => {
       id: a.ref.id.toString(),
       sha: a.contentHash.toString(),
     })),
-    settings: {
-      permissions: {
-        allow: lockfile.settings.permissions.allow,
-        deny: lockfile.settings.permissions.deny,
-      },
-    },
+    settings: settingsObj,
+    settingsHash: lockfile.settingsHash.toString(),
   };
   return `${JSON.stringify(out, null, 2)}\n`;
 };

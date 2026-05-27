@@ -23,6 +23,8 @@ export type InstallResult = {
     readonly agents: readonly AgentId[];
     readonly skills: readonly SkillId[];
     readonly commands: readonly CommandId[];
+    /** True if `.claude/settings.json` was written or rewritten. */
+    readonly settings: boolean;
   };
 };
 
@@ -52,6 +54,12 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
     ...composition.commands.map((c) => writer.writeCommand(c)),
   ]);
 
+  // Settings is a singleton, not an artifact list. The drift outcome tells
+  // us whether to write, delete, or leave alone. Empty settings are
+  // represented by deleting the file (no .claude/settings.json) rather
+  // than emitting an empty `{}`.
+  const settingsWritten = await applySettingsDrift(writer, composition.settings, drift);
+
   const nextLockfile = Lockfile.of({
     presetName: manifest.presetName,
     artifacts: [
@@ -79,6 +87,33 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
       agents: composition.agents.map((a) => a.id),
       skills: composition.skills.map((s) => s.id),
       commands: composition.commands.map((c) => c.id),
+      settings: settingsWritten,
     },
   };
+};
+
+const applySettingsDrift = async (
+  writer: WriterPort,
+  settings: Composition['settings'],
+  drift: DriftReport,
+): Promise<boolean> => {
+  switch (drift.settings.kind) {
+    case 'added':
+    case 'updated':
+      await writer.writeSettings(settings);
+      return true;
+    case 'removed':
+      await writer.deleteSettings();
+      return false;
+    case 'unchanged':
+      // First install with empty settings, or re-install with identical
+      // settings. In the latter case we rewrite for idempotence; in the
+      // former we ensure no stale file is left behind.
+      if (settings.isEmpty()) {
+        await writer.deleteSettings();
+        return false;
+      }
+      await writer.writeSettings(settings);
+      return true;
+  }
 };

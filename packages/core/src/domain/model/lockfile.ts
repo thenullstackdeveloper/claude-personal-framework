@@ -14,6 +14,13 @@ export type LockfileInit = {
   readonly presetName: PresetName;
   readonly artifacts: readonly LockedArtifact[];
   readonly settings: Settings;
+  /**
+   * Hash of the settings canonical JSON. Persisted explicitly so adapters
+   * can verify drift without re-serializing (and so the lockfile is
+   * inspectable by humans). If omitted at construction, the lockfile
+   * computes it from the provided settings.
+   */
+  readonly settingsHash?: ContentHash;
 };
 
 export class Lockfile {
@@ -21,10 +28,12 @@ export class Lockfile {
     public readonly presetName: PresetName,
     public readonly artifacts: readonly LockedArtifact[],
     public readonly settings: Settings,
+    public readonly settingsHash: ContentHash,
   ) {}
 
   static of(init: LockfileInit): Lockfile {
-    return new Lockfile(init.presetName, init.artifacts, init.settings);
+    const settingsHash = init.settingsHash ?? init.settings.contentHash();
+    return new Lockfile(init.presetName, init.artifacts, init.settings, settingsHash);
   }
 
   findHash(ref: ArtifactRef): ContentHash | null {
