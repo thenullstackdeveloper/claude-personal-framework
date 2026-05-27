@@ -14,7 +14,33 @@ Tiers reflect *when*, not *what*:
 
 ## Now
 
-### 1 · Settings (with hooks) + per-stack `CLAUDE.md` as catalog artifacts
+### 1 · Initialize project flow
+
+The motor reads `.claude-fw.yaml` from the project root but provides
+no way to create one. A brand-new project means a manual
+`echo "preset: base" > .claude-fw.yaml` outside the app — the
+end-to-end story breaks at the first step. This item closes that gap.
+
+Pieces:
+
+- Use case `initProject(projectPath, presetName)` in the engine:
+  writes `.claude-fw.yaml` with the chosen preset; fails if a
+  manifest already exists unless `--force` is passed.
+- CLI command `claude-fw init --project <p> --preset <name>`, with
+  `--json` for programmatic consumers.
+- Tauri command + UI: when `detect_path` returns `isProject: false`,
+  the **Install** button is replaced by **Initialize**, which lets
+  the user pick a preset from the catalog and either initializes
+  alone or chains directly into install.
+
+- *Why first:* without init, the "configure a preset, apply it to a
+  new project" path is broken at step one. Real friction hit when
+  installing into a brand-new repo (2026-05-17). Subsequent items
+  build on a working end-to-end flow.
+- *Cost:* medium (≈ 2–3 h). Touches engine, CLI, Tauri command and
+  the desktop UI.
+
+### 2 · Settings (with hooks) + per-stack `CLAUDE.md` as catalog artifacts
 
 The motor's `Settings` value object currently carries only
 `allow`/`deny` permissions. Extend it to model **hooks** too (the
@@ -24,11 +50,12 @@ instructions. The writer materializes both alongside `agents/`,
 `skills/` and `commands/`.
 
 - *Why now:* the only real "product capability" still missing.
-  Requested explicitly. No dependency on anything else.
+  Requested explicitly. Independent of init except that the new
+  artifacts will then be available to any newly initialized project.
 - *Cost:* medium. Touches `Settings` in the domain, the install /
   list use cases, the FS writer, and the Tauri catalog view.
 
-### 2 · Global bin install for the CLI
+### 3 · Global bin install for the CLI
 
 Ship `claude-fw` as a globally invokable command instead of
 `node packages/cli/dist/index.js`. Options on the table: `pnpm i -g`
@@ -38,7 +65,7 @@ from the repo, or publishing to a scoped registry.
   Independent.
 - *Cost:* low (≈ 1 h).
 
-### 3 · Calibrate the `hexagonal-refactor-nestjs` agent
+### 4 · Calibrate the `hexagonal-refactor-nestjs` agent
 
 Fold the lessons from the `users/` refactor in Tubegist into the
 agent's prompt:
@@ -57,19 +84,19 @@ agent's prompt:
 
 ## Next
 
-### 4 · Presets for other personal stacks (React, React Native, Vue 3, Laravel)
+### 5 · Presets for other personal stacks (React, React Native, Vue 3, Laravel)
 
-With the catalog format finalized after item 1 (settings + CLAUDE.md
+With the catalog format finalized after item 2 (settings + CLAUDE.md
 included), build first-class presets for each stack. Each preset
 needs at least one or two stack-specific agents or skills to be more
 than an empty `extends: base` shell.
 
-- *Why after item 1:* presets built now would have to be reworked to
+- *Why after item 2:* presets built now would have to be reworked to
   incorporate the richer catalog format. Do them once, with everything
   baked in.
 - *Cost:* medium per stack. Content work, not engine work.
 
-### 5 · Technical debt cleanup
+### 6 · Technical debt cleanup
 
 Three items the architecture audit flagged as "monitor, don't act":
 
@@ -85,13 +112,15 @@ Three items the architecture audit flagged as "monitor, don't act":
   deserve a phase of their own.
 - *Cost:* low each.
 
-### 6 · Screenshots for the main README
+### 7 · Screenshots for the main README
 
 Capture: empty state, catalog loaded, status with drift, successful
-install. Embed in the portfolio section of the main README.
+install (and the new initialize flow from item 1). Embed in the
+portfolio section of the main README.
 
-- *Why after item 1:* if the UI gains a settings/CLAUDE.md view as
-  part of item 1, screenshots taken now go stale.
+- *Why after items 1 and 2:* if the UI gains an Initialize button
+  (item 1) and a settings/CLAUDE.md view (item 2), screenshots taken
+  now go stale.
 - *Cost:* low — you capture, the README edit is trivial.
 
 ---
