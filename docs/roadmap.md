@@ -1,6 +1,6 @@
 # Roadmap
 
-Prioritized backlog as of 2026-05-27. Update it when priorities shift
+Prioritized backlog as of 2026-05-28. Update it when priorities shift
 or items ship — a stale roadmap is worse than no roadmap.
 
 Tiers reflect *when*, not *what*:
@@ -14,22 +14,7 @@ Tiers reflect *when*, not *what*:
 
 ## Now
 
-### 1 · Settings (with hooks) + per-stack `CLAUDE.md` as catalog artifacts
-
-The motor's `Settings` value object currently carries only
-`allow`/`deny` permissions. Extend it to model **hooks** too (the
-same primitive used in `~/.claude/settings.json` — `PreToolUse` and
-relatives), and add a new artifact type: per-preset `CLAUDE.md`
-instructions. The writer materializes both alongside `agents/`,
-`skills/` and `commands/`.
-
-- *Why now:* the only real "product capability" still missing.
-  Requested explicitly. Newly initialized projects will get these
-  artifacts as part of the install.
-- *Cost:* medium. Touches `Settings` in the domain, the install /
-  list use cases, the FS writer, and the Tauri catalog view.
-
-### 2 · Global bin install for the CLI
+### 1 · Global bin install for the CLI
 
 Ship `claude-fw` as a globally invokable command instead of
 `node packages/cli/dist/index.js`. Options on the table: `pnpm i -g`
@@ -39,7 +24,7 @@ from the repo, or publishing to a scoped registry.
   Independent.
 - *Cost:* low (≈ 1 h).
 
-### 3 · Calibrate the `hexagonal-refactor-nestjs` agent
+### 2 · Calibrate the `hexagonal-refactor-nestjs` agent
 
 Fold the lessons from the `users/` refactor in Tubegist into the
 agent's prompt:
@@ -58,49 +43,54 @@ agent's prompt:
 
 ## Next
 
-### 4 · Presets for other personal stacks (React, React Native, Vue 3, Laravel)
+### 3 · Presets for other personal stacks (React, React Native, Vue 3, Laravel)
 
-With the catalog format finalized after item 1 (settings + CLAUDE.md
-included), build first-class presets for each stack. Each preset
-needs at least one or two stack-specific agents or skills to be more
-than an empty `extends: base` shell.
+With the catalog format finalized (settings + CLAUDE.md included),
+build first-class presets for each stack. Each preset needs at least
+one or two stack-specific agents or skills to be more than an empty
+`extends: base` shell.
 
-- *Why after item 1:* presets built now would have to be reworked to
-  incorporate the richer catalog format. Do them once, with everything
-  baked in.
-- *Cost:* medium per stack. Content work, not engine work.
+- *Why next:* unblocked now that the catalog format is closed.
+  Content work, not engine work — schedule when the rest of Now is
+  cleared.
+- *Cost:* medium per stack.
 
-### 5 · Technical debt cleanup
+### 4 · Technical debt cleanup
 
-Three items the architecture audit flagged as "monitor, don't act":
+Items the architecture audit flagged as "monitor, don't act":
 
-- Report DTOs triplicated (CLI / Rust / frontend) — consider a shared
-  schema if the surface grows.
+- Report DTOs triplicated (CLI / Rust / frontend) — the surface grew
+  meaningfully with Bloque 3 (`instructions`, `settings`,
+  `StatusSingleton`, `CliError`). Consider a shared schema if it
+  grows further. See Deferred 6.
 - `parseSettings` duplicated between `parse-lockfile.ts` and
   `parse-preset.ts`.
-- `isErrnoException` duplicated across three `infrastructure/fs/`
-  adapters.
+- `isErrnoException` duplicated across three (now four with
+  `project-inspector.ts`) `infrastructure/fs/` adapters.
+- CLI top-level error handler detects `--json` by re-scanning
+  `process.argv` instead of using the parsed flag (`packages/cli/src/index.ts`).
+  Heredado del Bloque 2; armonizar cuando se reescriba `main()`.
 
-- *Why "next" and not "now":* all three are innocuous today. Fold
-  them in as cleanup when touching the surrounding code; they don't
-  deserve a phase of their own.
+- *Why "next" and not "now":* all innocuous today. Fold them in as
+  cleanup when touching the surrounding code; they don't deserve a
+  phase of their own.
 - *Cost:* low each.
 
-### 6 · Screenshots for the main README
+### 5 · Screenshots for the main README
 
-Capture: empty state, catalog loaded, the Initialize block on a
-fresh project, status with drift, successful install. Embed in the
-portfolio section of the main README.
+Capture: empty state, catalog loaded with the Instructions card,
+Initialize block on a fresh project, status with drift (including
+the Settings/Instructions singleton rows), successful install
+showing Settings + Instructions lines, take-over banner.
 
-- *Why after item 1:* if the UI gains a settings/CLAUDE.md view as
-  part of item 1, screenshots taken now go stale.
+- *Why now possible:* the UI shape settled after Bloque 3.
 - *Cost:* low — you capture, the README edit is trivial.
 
 ---
 
 ## Deferred
 
-Five items waiting on a named condition. Each ships when its trigger
+Items waiting on a named condition. Each ships when its trigger
 fires, not before.
 
 | Item | Trigger |
@@ -110,6 +100,18 @@ fires, not before.
 | 3 · Sidecar bundling for the Tauri app | You need to distribute the desktop app to a third party. Dev mode is enough until then. |
 | 4 · Refactor `jobs/` or `billing/` modules in Tubegist | You decide Tubegist itself needs the refactor. Calibration value alone has diminishing returns after the `users/` module. |
 | 5 · Recorded demo or blog post | The roadmap is mostly green and you want a public artifact of the project. |
+| 6 · Generated/shared types across Rust ↔ TS ↔ CLI (ts-rs / specta / CLI-published `.d.ts`) | A real drift bug bites (today: silent field drop), or a 3rd new command lands and the manual sync becomes the bottleneck. |
+| 7 · Preview of `.claude/CLAUDE.md` and `.claude/settings.json` in the desktop UI | You want to inspect installed content without leaving the app. Requires `tauri-plugin-fs` and a viewer component. |
+| 8 · Refactor `App.tsx` into custom hooks (`useInstallFlow`, `useStatusFlow`, `useInitFlow`) | A fourth flow is added or integration tests on `App.tsx` become painful to write. Today the file is ~350 lines and readable. |
+
+---
+
+## Recently shipped
+
+- **Settings (with hooks) + per-stack `CLAUDE.md` as catalog artifacts** — closed across three commits:
+  - `29bc33a` engine: `Settings` wraps `Permissions + Hooks`; lockfile + drift carry settings hash.
+  - `fed6857` engine: `Instructions` VO singleton concatenated from `instructions/<id>.md`; `.claude/CLAUDE.md` materialization; take-over guard via `UnmanagedClaudeMdError`.
+  - `ea579e0` desktop: Instructions card, Settings/Instructions singleton drift in status, take-over UI with Retry, structured `CliError`, vitest + RTL baseline.
 
 ---
 
