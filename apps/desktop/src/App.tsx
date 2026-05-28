@@ -7,6 +7,7 @@ import { SetupForm } from './components/setup-form';
 import { StatusView } from './components/status-view';
 import {
   type CatalogReport,
+  type CliError,
   type InstallReport as InstallReportData,
   type PathDetection,
   type StatusReport,
@@ -15,31 +16,32 @@ import {
   install,
   listCatalog,
   status,
+  toCliError,
 } from './lib/api';
 import { usePersistedState } from './lib/persisted-state';
 
 type InstallOutcome =
   | { status: 'idle' }
   | { status: 'success'; data: InstallReportData }
-  | { status: 'error'; error: string };
+  | { status: 'error'; error: CliError };
 
 type InitOutcome =
   | { status: 'idle' }
   | { status: 'success'; presetName: string; manifestPath: string }
-  | { status: 'error'; error: string };
+  | { status: 'error'; error: CliError };
 
 function App() {
   const [frameworkRoot, setFrameworkRoot] = usePersistedState('cfw.frameworkRoot', '');
   const [projectRoot, setProjectRoot] = usePersistedState('cfw.projectRoot', '');
 
   const [catalog, setCatalog] = useState<CatalogReport | null>(null);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogError, setCatalogError] = useState<CliError | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
 
   const [projectDetection, setProjectDetection] = useState<PathDetection | null>(null);
 
   const [statusReport, setStatusReport] = useState<StatusReport | null>(null);
-  const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<CliError | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
 
   const [installOutcome, setInstallOutcome] = useState<InstallOutcome>({ status: 'idle' });
@@ -116,7 +118,7 @@ function App() {
       setCatalog(data);
     } catch (e) {
       setCatalog(null);
-      setCatalogError(toErrorMessage(e));
+      setCatalogError(toCliError(e));
     } finally {
       setLoadingCatalog(false);
     }
@@ -130,7 +132,7 @@ function App() {
       setStatusReport(data);
     } catch (e) {
       setStatusReport(null);
-      setStatusError(toErrorMessage(e));
+      setStatusError(toCliError(e));
     } finally {
       setCheckingStatus(false);
     }
@@ -154,7 +156,7 @@ function App() {
         // ignore
       }
     } catch (e) {
-      setInitOutcome({ status: 'error', error: toErrorMessage(e) });
+      setInitOutcome({ status: 'error', error: toCliError(e) });
     } finally {
       setInitializing(false);
     }
@@ -182,7 +184,7 @@ function App() {
         // ignore — status refresh is best-effort
       }
     } catch (e) {
-      setInstallOutcome({ status: 'error', error: toErrorMessage(e) });
+      setInstallOutcome({ status: 'error', error: toCliError(e) });
     } finally {
       setInstalling(false);
     }
@@ -255,7 +257,7 @@ function App() {
           <section className="bg-red-950/40 border border-red-900 rounded-lg p-4 text-sm text-red-200 flex items-start justify-between gap-4">
             <div>
               <strong className="font-semibold">Initialize failed: </strong>
-              <span className="font-mono text-xs text-red-300/80">{initOutcome.error}</span>
+              <span className="font-mono text-xs text-red-300/80">{initOutcome.error.message}</span>
             </div>
             <button
               type="button"
@@ -279,13 +281,14 @@ function App() {
             status="error"
             error={installOutcome.error}
             onDismiss={dismissInstallOutcome}
+            onRetry={handleInstall}
           />
         )}
 
         {statusError && (
           <section className="bg-red-950/40 border border-red-900 rounded-lg p-4 text-sm text-red-200">
             <strong className="font-semibold">Status check failed: </strong>
-            <span className="font-mono text-xs text-red-300/80">{statusError}</span>
+            <span className="font-mono text-xs text-red-300/80">{statusError.message}</span>
           </section>
         )}
 
@@ -294,7 +297,7 @@ function App() {
         {catalogError && (
           <section className="bg-red-950/40 border border-red-900 rounded-lg p-4 text-sm text-red-200">
             <strong className="font-semibold">Catalog load failed: </strong>
-            <span className="font-mono text-xs text-red-300/80">{catalogError}</span>
+            <span className="font-mono text-xs text-red-300/80">{catalogError.message}</span>
           </section>
         )}
 
@@ -333,12 +336,6 @@ function EmptyState() {
       </p>
     </section>
   );
-}
-
-function toErrorMessage(e: unknown): string {
-  if (typeof e === 'string') return e;
-  if (e instanceof Error) return e.message;
-  return JSON.stringify(e);
 }
 
 export default App;

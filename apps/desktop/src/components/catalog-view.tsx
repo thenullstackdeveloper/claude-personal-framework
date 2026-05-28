@@ -1,4 +1,4 @@
-import { Boxes, FileTerminal, ScrollText, Sparkles } from 'lucide-react';
+import { BookOpen, Boxes, FileTerminal, ScrollText, Sparkles } from 'lucide-react';
 import type { CatalogReport } from '../lib/api';
 
 type CatalogViewProps = {
@@ -19,7 +19,12 @@ export function CatalogView({ report }: CatalogViewProps) {
                 <span className="text-zinc-500"> ← {p.extends.join(', ')}</span>
               )}
               <div className="text-xs text-zinc-500 mt-0.5">
-                {summarizePresetCounts(p.agents.length, p.skills.length, p.commands.length)}
+                {summarizePresetCounts(
+                  p.agents.length,
+                  p.skills.length,
+                  p.commands.length,
+                  p.instructions.length,
+                )}
               </div>
             </div>
           ))
@@ -51,6 +56,20 @@ export function CatalogView({ report }: CatalogViewProps) {
           <EmptyHint label="No commands in the catalog" />
         ) : (
           report.commands.map((c) => <Artifact key={c.id} id={c.id} description={c.description} />)
+        )}
+      </Card>
+
+      <Card
+        icon={<BookOpen className="w-4 h-4" />}
+        title="Instructions"
+        count={report.instructions.length}
+      >
+        {report.instructions.length === 0 ? (
+          <EmptyHint label="No instructions in the catalog" />
+        ) : (
+          report.instructions.map((i) => (
+            <Artifact key={i.id} id={i.id} description={i.description} />
+          ))
         )}
       </Card>
     </section>
@@ -95,10 +114,18 @@ function EmptyHint({ label }: { label: string }) {
   return <p className="text-xs text-zinc-600 italic">{label}</p>;
 }
 
-function summarizePresetCounts(agents: number, skills: number, commands: number): string {
+function summarizePresetCounts(
+  agents: number,
+  skills: number,
+  commands: number,
+  instructions: number,
+): string {
   const parts: string[] = [];
   if (agents > 0) parts.push(`${agents} agent${agents === 1 ? '' : 's'}`);
   if (skills > 0) parts.push(`${skills} skill${skills === 1 ? '' : 's'}`);
   if (commands > 0) parts.push(`${commands} command${commands === 1 ? '' : 's'}`);
+  if (instructions > 0) {
+    parts.push(`${instructions} instruction${instructions === 1 ? '' : 's'}`);
+  }
   return parts.length > 0 ? parts.join(', ') : 'empty';
 }

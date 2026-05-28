@@ -1,14 +1,51 @@
-import { CheckCircle2, XCircle } from 'lucide-react';
-import type { InstallReport as InstallReportData } from '../lib/api';
+import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import type { CliError, InstallReport as InstallReportData } from '../lib/api';
 
 type InstallReportProps = {
   readonly status: 'success' | 'error';
   readonly data?: InstallReportData;
-  readonly error?: string;
+  readonly error?: CliError;
   readonly onDismiss: () => void;
+  readonly onRetry?: () => void;
 };
 
-export function InstallReport({ status, data, error, onDismiss }: InstallReportProps) {
+export function InstallReport({ status, data, error, onDismiss, onRetry }: InstallReportProps) {
+  if (status === 'error' && error?.code === 'UNMANAGED_CLAUDE_MD') {
+    return (
+      <section className="bg-amber-950/40 border border-amber-900 rounded-lg p-4 flex gap-3 items-start">
+        <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+        <div className="flex-1 space-y-2 min-w-0">
+          <h3 className="text-sm font-semibold text-amber-200">
+            Project has an unmanaged CLAUDE.md
+          </h3>
+          <p className="text-xs text-amber-200/80 leading-relaxed">
+            The project already has a <span className="font-mono">.claude/CLAUDE.md</span> the
+            framework didn't create. Install refuses to overwrite it so your file stays intact. Move
+            or delete it manually, then retry.
+          </p>
+        </div>
+        <div className="flex flex-col gap-1 items-end">
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="text-xs text-amber-200 hover:text-amber-50 font-semibold"
+            >
+              Retry
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="text-xs text-amber-300/70 hover:text-amber-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   if (status === 'error') {
     return (
       <section className="bg-red-950/40 border border-red-900 rounded-lg p-4 flex gap-3 items-start">
@@ -16,7 +53,7 @@ export function InstallReport({ status, data, error, onDismiss }: InstallReportP
         <div className="flex-1 space-y-2 min-w-0">
           <h3 className="text-sm font-semibold text-red-200">Install failed</h3>
           <pre className="text-xs text-red-300/80 whitespace-pre-wrap break-words font-mono">
-            {error ?? 'Unknown error'}
+            {error?.message ?? 'Unknown error'}
           </pre>
         </div>
         <button
@@ -32,7 +69,9 @@ export function InstallReport({ status, data, error, onDismiss }: InstallReportP
 
   if (!data) return null;
 
-  const total = data.agents.length + data.skills.length + data.commands.length;
+  const artifactCount = data.agents.length + data.skills.length + data.commands.length;
+  const wroteSingletons = data.settings || data.instructions;
+  const writtenNothing = artifactCount === 0 && !wroteSingletons;
 
   return (
     <section className="bg-emerald-950/40 border border-emerald-900 rounded-lg p-4 flex gap-3 items-start">
@@ -42,9 +81,9 @@ export function InstallReport({ status, data, error, onDismiss }: InstallReportP
           Installed preset "{data.presetName}"
         </h3>
         <p className="text-xs text-emerald-300/80">
-          {total === 0
+          {writtenNothing
             ? 'No artifacts to install.'
-            : `${total} artifact${total === 1 ? '' : 's'} written to .claude/`}
+            : `${artifactCount} artifact${artifactCount === 1 ? '' : 's'} written to .claude/`}
         </p>
         <ul className="text-xs text-emerald-300/70 mt-2 space-y-0.5">
           {data.agents.length > 0 && (
@@ -60,6 +99,16 @@ export function InstallReport({ status, data, error, onDismiss }: InstallReportP
           {data.commands.length > 0 && (
             <li>
               Commands: <span className="font-mono">{data.commands.join(', ')}</span>
+            </li>
+          )}
+          {data.settings && (
+            <li>
+              Settings: <span className="font-mono">.claude/settings.json</span>
+            </li>
+          )}
+          {data.instructions && (
+            <li>
+              Instructions: <span className="font-mono">.claude/CLAUDE.md</span>
             </li>
           )}
         </ul>

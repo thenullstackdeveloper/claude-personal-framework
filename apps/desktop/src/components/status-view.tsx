@@ -1,5 +1,6 @@
 import { Check, Minus, Plus, RotateCw, X } from 'lucide-react';
-import type { StatusArtifact, StatusReport, StatusUpdate } from '../lib/api';
+import type { StatusArtifact, StatusReport, StatusSingleton, StatusUpdate } from '../lib/api';
+import { shortenSha } from '../lib/sha';
 
 type StatusViewProps = {
   readonly report: StatusReport;
@@ -7,7 +8,11 @@ type StatusViewProps = {
 };
 
 export function StatusView({ report, onDismiss }: StatusViewProps) {
-  const totalDrift = report.added.length + report.updated.length + report.removed.length;
+  const artifactDrift = report.added.length + report.updated.length + report.removed.length;
+  const singletonsChanged =
+    (report.settings.kind !== 'unchanged' ? 1 : 0) +
+    (report.instructions.kind !== 'unchanged' ? 1 : 0);
+  const totalDrift = artifactDrift + singletonsChanged;
   const inSync = totalDrift === 0;
 
   return (
@@ -65,6 +70,11 @@ export function StatusView({ report, onDismiss }: StatusViewProps) {
           items={report.unchanged}
         />
       </div>
+
+      <div className="border-t border-zinc-800 pt-3 space-y-1.5">
+        <SingletonRow label="Settings" path=".claude/settings.json" status={report.settings} />
+        <SingletonRow label="Instructions" path=".claude/CLAUDE.md" status={report.instructions} />
+      </div>
     </section>
   );
 }
@@ -103,12 +113,45 @@ function Bucket({ icon, title, tone, items }: BucketProps) {
               <span className="text-zinc-600">{item.type}:</span> {item.id}
               {'oldSha' in item && (
                 <span className="block text-zinc-700 ml-3">
-                  {item.oldSha.slice(0, 7)} → {item.newSha.slice(0, 7)}
+                  {shortenSha(item.oldSha)} → {shortenSha(item.newSha)}
                 </span>
               )}
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+type SingletonRowProps = {
+  readonly label: string;
+  readonly path: string;
+  readonly status: StatusSingleton;
+};
+
+function SingletonRow({ label, path, status }: SingletonRowProps) {
+  const kind = status.kind;
+  const toneClass: Record<StatusSingleton['kind'], string> = {
+    unchanged: 'text-zinc-500',
+    added: 'text-emerald-300',
+    removed: 'text-red-300',
+    updated: 'text-amber-300',
+  };
+
+  return (
+    <div className="flex items-baseline gap-2 text-xs">
+      <span className={`font-semibold uppercase tracking-wide ${toneClass[kind]}`}>{label}</span>
+      <span className="text-zinc-600 font-mono">{path}</span>
+      <span className="text-zinc-500">·</span>
+      <span className={toneClass[kind]}>{kind}</span>
+      {status.kind === 'removed' && (
+        <span className="font-mono text-zinc-700">was {shortenSha(status.oldSha)}</span>
+      )}
+      {status.kind === 'updated' && (
+        <span className="font-mono text-zinc-700">
+          {shortenSha(status.oldSha)} → {shortenSha(status.newSha)}
+        </span>
       )}
     </div>
   );
