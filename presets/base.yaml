@@ -1,3 +1,5 @@
 agents:
   - hexagonal-architect
   - pr-creator
+skills:
+  - commit-style
