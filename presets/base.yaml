@@ -4,3 +4,4 @@ agents:
 skills:
   - commit-style
   - typescript-hexagonal-rules
+  - hexagonal-testing-strategy

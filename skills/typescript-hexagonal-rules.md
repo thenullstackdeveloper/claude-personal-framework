@@ -1,11 +1,13 @@
 ---
 name: typescript-hexagonal-rules
-description: Reglas hexagonales específicas para proyectos TypeScript/Node. Complementa hexagonal-architect cuando trabajas en ese stack — manejo de tipos, errores, side effects y tests por capa. Sin esta skill, hexagonal-architect aplica solo principios universales agnósticos al lenguaje.
+description: Reglas hexagonales específicas para proyectos TypeScript/Node. Complementa hexagonal-architect cuando trabajas en ese stack — manejo de tipos, errores, side effects y convenciones del lenguaje. Para la estrategia de testing por capa, ver `hexagonal-testing-strategy`.
 ---
 
 # Reglas hexagonales para TypeScript / Node
 
 Esta skill se carga junto con `hexagonal-architect` cuando el proyecto es TypeScript o Node. Concreta los principios universales en decisiones específicas del lenguaje.
+
+Para la estrategia de testing por capa (pirámide hex, fakes vs mocks, anti-patterns, mappers con omisiones), ver la skill `hexagonal-testing-strategy` — agnóstica al lenguaje. Aquí solo lo verdaderamente específico de TypeScript / Node.
 
 ## TypeScript
 
@@ -24,14 +26,6 @@ Esta skill se carga junto con `hexagonal-architect` cuando el proyecto es TypeSc
 
 - El dominio no ejecuta side effects. Los **modela como datos** (eventos de dominio devueltos por el método: `applyTo(x): { state: T; events: DomainEvent[] }`) o los **declara como comandos** que la aplicación ejecuta vía adapter.
 - La aplicación recibe los efectos en formato de datos y decide cómo materializarlos (publicar evento, enviar email, escribir en BD). La aplicación no implementa los efectos — los delega al adapter inyectado.
-
-## Tests por capa
-
-| Capa | Qué se testea | Cómo |
-|---|---|---|
-| Dominio | Reglas e invariantes | TypeScript puro, **sin mocks, sin fs, sin red**. Si necesitas mockear algo del dominio, está mal modelado. |
-| Aplicación | Casos de uso orquestando puertos | **Fakes/stubs en memoria** que implementan los puertos. No librerías de mock automático (`vi.mock`, `jest.mock`) salvo casos puntuales. Los fakes hacen el contrato explícito. |
-| Infraestructura | Adapters contra sistemas reales | Integración: fs temporal, parser real, contenedor de BD. Más lentos, menos numerosos. |
 
 ## Convenciones del lenguaje que ayudan al hex
 
