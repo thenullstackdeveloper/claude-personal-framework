@@ -1,6 +1,6 @@
 # Roadmap
 
-Prioritized backlog as of 2026-05-28. Update it when priorities shift
+Prioritized backlog as of 2026-05-29. Update it when priorities shift
 or items ship — a stale roadmap is worse than no roadmap.
 
 Tiers reflect *when*, not *what*:
@@ -24,38 +24,26 @@ from the repo, or publishing to a scoped registry.
   Independent.
 - *Cost:* low (≈ 1 h).
 
-### 2 · Calibrate the `hexagonal-refactor-nestjs` agent
-
-Fold the lessons from the `users/` refactor in Tubegist into the
-agent's prompt:
-
-- YAGNI — never create empty files or unused methods "just in case".
-- Never emit empty commits to satisfy a plan.
-- If splitting two commits would break the "tests green between
-  commits" invariant, fuse them and document the reason in the body.
-
-- *Why now:* cheap (one markdown edit) and **must precede** any
-  further refactor in Tubegist (Deferred item 4). Otherwise the next
-  refactor repeats the same mistakes.
-- *Cost:* low (≈ 30 min).
-
 ---
 
 ## Next
 
-### 3 · Presets for other personal stacks (React, React Native, Vue 3, Laravel)
+### 2 · Presets for other personal stacks (React, React Native, Vue 3, Laravel)
 
-With the catalog format finalized (settings + CLAUDE.md included),
+With the catalog format finalized (settings + CLAUDE.md included) and
+the catalog itself enriched (testing strategy skill, test-reviewer
+agent, agnostic architect + TS rules skill, commit-style skill),
 build first-class presets for each stack. Each preset needs at least
 one or two stack-specific agents or skills to be more than an empty
 `extends: base` shell.
 
-- *Why next:* unblocked now that the catalog format is closed.
-  Content work, not engine work — schedule when the rest of Now is
-  cleared.
+- *Why next:* unblocked. Content work, not engine work — schedule
+  when the rest of Now is cleared. Likely first targets: react-native
+  and nestjs presets enriched with their own testing-rules skills
+  (see Deferred 9).
 - *Cost:* medium per stack.
 
-### 4 · Technical debt cleanup
+### 3 · Technical debt cleanup
 
 Items the architecture audit flagged as "monitor, don't act":
 
@@ -65,18 +53,19 @@ Items the architecture audit flagged as "monitor, don't act":
   grows further. See Deferred 6.
 - `parseSettings` duplicated between `parse-lockfile.ts` and
   `parse-preset.ts`.
-- `isErrnoException` duplicated across three (now four with
-  `project-inspector.ts`) `infrastructure/fs/` adapters.
+- `isErrnoException` duplicated across four `infrastructure/fs/`
+  adapters.
 - CLI top-level error handler detects `--json` by re-scanning
-  `process.argv` instead of using the parsed flag (`packages/cli/src/index.ts`).
-  Heredado del Bloque 2; armonizar cuando se reescriba `main()`.
+  `process.argv` instead of using the parsed flag
+  (`packages/cli/src/index.ts`). Heredado del Bloque 2; armonizar
+  cuando se reescriba `main()`.
 
 - *Why "next" and not "now":* all innocuous today. Fold them in as
   cleanup when touching the surrounding code; they don't deserve a
   phase of their own.
 - *Cost:* low each.
 
-### 5 · Screenshots for the main README
+### 4 · Screenshots for the main README
 
 Capture: empty state, catalog loaded with the Instructions card,
 Initialize block on a fresh project, status with drift (including
@@ -103,6 +92,9 @@ fires, not before.
 | 6 · Generated/shared types across Rust ↔ TS ↔ CLI (ts-rs / specta / CLI-published `.d.ts`) | A real drift bug bites (today: silent field drop), or a 3rd new command lands and the manual sync becomes the bottleneck. |
 | 7 · Preview of `.claude/CLAUDE.md` and `.claude/settings.json` in the desktop UI | You want to inspect installed content without leaving the app. Requires `tauri-plugin-fs` and a viewer component. |
 | 8 · Refactor `App.tsx` into custom hooks (`useInstallFlow`, `useStatusFlow`, `useInitFlow`) | A fourth flow is added or integration tests on `App.tsx` become painful to write. Today the file is ~350 lines and readable. |
+| 9 · Per-stack testing rules skills (`react-native-testing-rules`, `nestjs-testing-rules`, etc.) | You start auditing a project with `hexagonal-test-reviewer` and need stack-specific guidance (RNTL + native module mocks, supertest + TestContainers, etc.). Mirror the pattern of `nestjs-hexagonal-patterns`. |
+| 10 · Calibrate `hexagonal-test-reviewer` agent | First live use of the agent on a real project surfaces gaps or false positives in the prompt. Same calibration cycle that closed the refactor agent. |
+| 11 · Promote `commit-style` to the CLAUDE.md install flow | The skill exists but each project's CLAUDE.md still needs the "no AI attribution / never commit without OK" rules redundantly. When item 1 (global bin install) ships, evaluate if `claude-fw install` should also patch / append project CLAUDE.md from the catalog. |
 
 ---
 
@@ -112,6 +104,12 @@ fires, not before.
   - `29bc33a` engine: `Settings` wraps `Permissions + Hooks`; lockfile + drift carry settings hash.
   - `fed6857` engine: `Instructions` VO singleton concatenated from `instructions/<id>.md`; `.claude/CLAUDE.md` materialization; take-over guard via `UnmanagedClaudeMdError`.
   - `ea579e0` desktop: Instructions card, Settings/Instructions singleton drift in status, take-over UI with Retry, structured `CliError`, vitest + RTL baseline.
+
+- **Catalog calibration from Tubegist refactor sweep** — Item 2 of Now (Calibrate `hexagonal-refactor-nestjs`) closed plus three related upgrades that grew naturally from the sweep:
+  - `944388d` skill: `commit-style` documenting message conventions (rule zero "no AI attribution", Conventional Commits with type table, four named body patterns, HEREDOC for multi-line, `--no-ff` merges). Added to `base` preset.
+  - `595cf54` agent: `hexagonal-refactor-nestjs` rewritten (148 → 239 lines) folding the 8 lessons accumulated from queue/me/worker/auth/llm refactors: Phase 1 cross-module sweep + comment scan + repo precedents, Phase 2 explicit verdict A–E, "Cuándo NO proponer port abstraction" block, "Comentarios — stale vs explica-coupling" block, "Mappers con omisiones deliberadas" block, rule zero on invariants vs folders.
+  - `99da5da` architect decoupled: `hexagonal-architect` agent now language/framework agnostic (66 → 105 lines folding the same 6 lessons that applied to it). TypeScript-specific rules extracted to new `typescript-hexagonal-rules` skill — mirrors the `nestjs-hexagonal-patterns` pattern.
+  - `616e510` testing: new agnostic skill `hexagonal-testing-strategy` (pyramid per layer with what/how/volume, fakes >> mocks policy, mappers with omissions, anti-patterns, qualitative health signals) and new `hexagonal-test-reviewer` agent (dual-mode audit/design, one module per session, ad-hoc invocation only — stays out of base preset by design).
 
 ---
 
