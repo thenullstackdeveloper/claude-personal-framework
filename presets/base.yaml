@@ -3,3 +3,4 @@ agents:
   - pr-creator
 skills:
   - commit-style
+  - typescript-hexagonal-rules
