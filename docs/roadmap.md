@@ -56,6 +56,12 @@ as an independent commit):
   microsecond flicker happens. Add a toast or visible pulse
   confirming the refresh — do not disable the button (re-loading is
   legitimate).
+- *1.UX.6* — **Clear stale outcome banners on path change.** Init and
+  Install success banners survive a Project root change and keep
+  showing as if they belonged to the new project (e.g. "Installed
+  preset base" from project A is still visible after switching to
+  project B). Same family as 1.UX.3 (stale status report). Clear
+  these outcomes when the Project root field changes.
 
 - *Why now:* the file size and lack of separation makes adding any
   UX or functionality friction. Refactoring first removes the
