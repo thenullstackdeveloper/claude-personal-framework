@@ -5,16 +5,15 @@ import { CatalogView } from './components/catalog-view';
 import { InstallReport } from './components/install-report';
 import { SetupForm } from './components/setup-form';
 import { StatusView } from './components/status-view';
+import { useCatalogFlow } from './hooks/use-catalog-flow';
 import { useDetectPath } from './hooks/use-detect-path';
 import {
-  type CatalogReport,
   type CliError,
   type InstallReport as InstallReportData,
   type StatusReport,
   detectPath,
   initialize,
   install,
-  listCatalog,
   status,
   toCliError,
 } from './lib/api';
@@ -35,9 +34,12 @@ function App() {
   const [frameworkRoot, setFrameworkRoot] = usePersistedState('cfw.frameworkRoot', '');
   const [projectRoot, setProjectRoot] = usePersistedState('cfw.projectRoot', '');
 
-  const [catalog, setCatalog] = useState<CatalogReport | null>(null);
-  const [catalogError, setCatalogError] = useState<CliError | null>(null);
-  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const {
+    catalog,
+    error: catalogError,
+    loading: loadingCatalog,
+    load: handleLoadCatalog,
+  } = useCatalogFlow(frameworkRoot);
 
   const { detection: projectDetection, refresh: refreshProjectDetection } =
     useDetectPath(projectRoot);
@@ -89,20 +91,6 @@ function App() {
       } catch {
         // ignore
       }
-    }
-  };
-
-  const handleLoadCatalog = async () => {
-    setLoadingCatalog(true);
-    setCatalogError(null);
-    try {
-      const data = await listCatalog(frameworkRoot);
-      setCatalog(data);
-    } catch (e) {
-      setCatalog(null);
-      setCatalogError(toCliError(e));
-    } finally {
-      setLoadingCatalog(false);
     }
   };
 
