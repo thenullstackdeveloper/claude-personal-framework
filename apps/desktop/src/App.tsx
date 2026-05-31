@@ -1,15 +1,15 @@
 import { ask, open } from '@tauri-apps/plugin-dialog';
 import { Sparkles } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { CatalogView } from './components/catalog-view';
 import { InstallReport } from './components/install-report';
 import { SetupForm } from './components/setup-form';
 import { StatusView } from './components/status-view';
+import { useDetectPath } from './hooks/use-detect-path';
 import {
   type CatalogReport,
   type CliError,
   type InstallReport as InstallReportData,
-  type PathDetection,
   type StatusReport,
   detectPath,
   initialize,
@@ -39,7 +39,8 @@ function App() {
   const [catalogError, setCatalogError] = useState<CliError | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
 
-  const [projectDetection, setProjectDetection] = useState<PathDetection | null>(null);
+  const { detection: projectDetection, refresh: refreshProjectDetection } =
+    useDetectPath(projectRoot);
 
   const [statusReport, setStatusReport] = useState<StatusReport | null>(null);
   const [statusError, setStatusError] = useState<CliError | null>(null);
@@ -50,26 +51,6 @@ function App() {
 
   const [initOutcome, setInitOutcome] = useState<InitOutcome>({ status: 'idle' });
   const [initializing, setInitializing] = useState(false);
-
-  // Re-detect project role whenever the project root changes. Best-effort:
-  // a failed detection clears the cached value rather than surfacing.
-  useEffect(() => {
-    if (!projectRoot) {
-      setProjectDetection(null);
-      return;
-    }
-    let cancelled = false;
-    detectPath(projectRoot)
-      .then((d) => {
-        if (!cancelled) setProjectDetection(d);
-      })
-      .catch(() => {
-        if (!cancelled) setProjectDetection(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [projectRoot]);
 
   const handleBrowseFramework = async () => {
     const selected = await open({
@@ -149,13 +130,9 @@ function App() {
         presetName: data.presetName,
         manifestPath: data.manifestPath,
       });
-      // Refresh detection so the UI flips to "Install" mode.
-      try {
-        const fresh = await detectPath(projectRoot);
-        setProjectDetection(fresh);
-      } catch {
-        // ignore
-      }
+      // Refresh detection so the UI flips to "Install" mode. The path
+      // didn't change so the hook's effect wouldn't re-fire on its own.
+      refreshProjectDetection();
     } catch (e) {
       setInitOutcome({ status: 'error', error: toCliError(e) });
     } finally {
