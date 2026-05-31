@@ -20,10 +20,42 @@ Start by extracting `App.tsx` (~350 lines, four flows mixed) into
 custom hooks: `useInstallFlow`, `useStatusFlow`, `useInitFlow`,
 plus path/persistence wiring. Once the monolith is broken, iterate
 UX and missing functionality as sub-items emerging from real usage —
-not pre-imagined. Likely candidates that may bubble up: clearer
-loading / error feedback per flow, preview of installed
-`.claude/CLAUDE.md` and `.claude/settings.json` (today Deferred 7),
-better empty-state copy, keyboard shortcuts.
+not pre-imagined.
+
+**Sub-phases of the refactor:**
+
+- *0* — extract `buildConfirmMessage` helper (`1dc8767`). ✓
+- *1* — extract `useDetectPath` hook (`639b68d`). ✓
+- *2* — extract `useCatalogFlow` hook. Pending.
+- *3* — extract `useStatusFlow` hook. Pending.
+- *4* — extract `useInitFlow` hook. Pending.
+- *5* — extract `useInstallFlow` hook (depends on 0 + 3). Pending.
+- *6* — extract `usePathPicker` hook. Pending.
+- *7* — `App.tsx` tidy as composition root (conditional, only if
+  anything left to clean). Pending.
+
+**UX sub-items surfaced during sub-phase 1 smoke tests** (each ships
+as an independent commit):
+
+- *1.UX.1* — **Tooltips on disabled buttons.** Today buttons go grey
+  with no explanation of what's missing (catalog, preset, paths).
+  Each disabled state needs a tooltip naming the gate.
+- *1.UX.2* — **Disable Install when context is incomplete.** The
+  Install button stays vibrant violet even with no project / no
+  catalog / no manifest. Should grey out and trigger the tooltip
+  from 1.UX.1.
+- *1.UX.3* — **Clear stale status report on path change.** The
+  Status panel keeps showing the previous project's drift report
+  after the Project root field changes. Clear it on path change (or
+  re-run check automatically — TBD).
+- *1.UX.4* — **Fix preset dropdown styling.** The `<select>` inside
+  the "Project not initialized" block renders white-on-white, making
+  the selected preset invisible. Doesn't inherit the dark theme.
+- *1.UX.5* — **Visible feedback on Load catalog re-press.** When the
+  catalog is already loaded and the button is pressed again, only a
+  microsecond flicker happens. Add a toast or visible pulse
+  confirming the refresh — do not disable the button (re-loading is
+  legitimate).
 
 - *Why now:* the file size and lack of separation makes adding any
   UX or functionality friction. Refactoring first removes the
