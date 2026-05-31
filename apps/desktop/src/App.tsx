@@ -7,12 +7,12 @@ import { SetupForm } from './components/setup-form';
 import { StatusView } from './components/status-view';
 import { useCatalogFlow } from './hooks/use-catalog-flow';
 import { useDetectPath } from './hooks/use-detect-path';
+import { useInitFlow } from './hooks/use-init-flow';
 import { useStatusFlow } from './hooks/use-status-flow';
 import {
   type CliError,
   type InstallReport as InstallReportData,
   detectPath,
-  initialize,
   install,
   status,
   toCliError,
@@ -23,11 +23,6 @@ import { usePersistedState } from './lib/persisted-state';
 type InstallOutcome =
   | { status: 'idle' }
   | { status: 'success'; data: InstallReportData }
-  | { status: 'error'; error: CliError };
-
-type InitOutcome =
-  | { status: 'idle' }
-  | { status: 'success'; presetName: string; manifestPath: string }
   | { status: 'error'; error: CliError };
 
 function App() {
@@ -56,8 +51,16 @@ function App() {
   const [installOutcome, setInstallOutcome] = useState<InstallOutcome>({ status: 'idle' });
   const [installing, setInstalling] = useState(false);
 
-  const [initOutcome, setInitOutcome] = useState<InitOutcome>({ status: 'idle' });
-  const [initializing, setInitializing] = useState(false);
+  const {
+    outcome: initOutcome,
+    initializing,
+    initialize: handleInitialize,
+    dismiss: dismissInitOutcome,
+  } = useInitFlow({
+    frameworkRoot,
+    projectRoot,
+    onSuccess: refreshProjectDetection,
+  });
 
   const handleBrowseFramework = async () => {
     const selected = await open({
@@ -99,26 +102,6 @@ function App() {
     }
   };
 
-  const handleInitialize = async (presetName: string) => {
-    setInitializing(true);
-    setInitOutcome({ status: 'idle' });
-    try {
-      const data = await initialize(frameworkRoot, projectRoot, presetName);
-      setInitOutcome({
-        status: 'success',
-        presetName: data.presetName,
-        manifestPath: data.manifestPath,
-      });
-      // Refresh detection so the UI flips to "Install" mode. The path
-      // didn't change so the hook's effect wouldn't re-fire on its own.
-      refreshProjectDetection();
-    } catch (e) {
-      setInitOutcome({ status: 'error', error: toCliError(e) });
-    } finally {
-      setInitializing(false);
-    }
-  };
-
   const handleInstall = async () => {
     const confirmMsg = buildConfirmMessage(projectRoot, statusReport);
     const confirmed = await ask(confirmMsg, {
@@ -148,7 +131,6 @@ function App() {
   };
 
   const dismissInstallOutcome = () => setInstallOutcome({ status: 'idle' });
-  const dismissInitOutcome = () => setInitOutcome({ status: 'idle' });
 
   const hasAnyPath = frameworkRoot !== '' || projectRoot !== '';
   const showEmptyState =
