@@ -62,6 +62,22 @@ as an independent commit):
   preset base" from project A is still visible after switching to
   project B). Same family as 1.UX.3 (stale status report). Clear
   these outcomes when the Project root field changes.
+- *1.UX.7* — **Friendly handling when the project directory does not
+  exist.** Today if the user types a Project root path whose folder
+  does not exist, `initialize` falls through to a write that triggers
+  `ENOENT` raw from the filesystem and the banner shows the
+  fs-level message verbatim. Replace with: engine returns a typed
+  `ProjectDirMissingError` (`code: 'PROJECT_DIR_MISSING'`), the UI
+  catches it and shows a native confirmation modal *"The folder X
+  does not exist. Create it and continue?"* — on confirm, the UI
+  invokes a new Tauri command `ensure_project_dir(path)` that does
+  `fs::create_dir_all` and then retries `initialize`; on cancel,
+  outcome returns to idle without a red banner. Three-layer change:
+  engine (typed error replacing the ENOENT leak), Rust
+  (`ensure_project_dir` command), UI (catch + modal + retry in
+  `useInitFlow` or its caller). Keeps the engine agnostic to client
+  policy — CLI can stay strict, desktop is friendly. Likely shipped
+  as 2-3 independent commits per Angel's commit hygiene rule.
 
 - *Why now:* the file size and lack of separation makes adding any
   UX or functionality friction. Refactoring first removes the
