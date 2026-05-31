@@ -7,10 +7,10 @@ import { SetupForm } from './components/setup-form';
 import { StatusView } from './components/status-view';
 import { useCatalogFlow } from './hooks/use-catalog-flow';
 import { useDetectPath } from './hooks/use-detect-path';
+import { useStatusFlow } from './hooks/use-status-flow';
 import {
   type CliError,
   type InstallReport as InstallReportData,
-  type StatusReport,
   detectPath,
   initialize,
   install,
@@ -44,9 +44,14 @@ function App() {
   const { detection: projectDetection, refresh: refreshProjectDetection } =
     useDetectPath(projectRoot);
 
-  const [statusReport, setStatusReport] = useState<StatusReport | null>(null);
-  const [statusError, setStatusError] = useState<CliError | null>(null);
-  const [checkingStatus, setCheckingStatus] = useState(false);
+  const {
+    report: statusReport,
+    error: statusError,
+    checking: checkingStatus,
+    check: handleCheckStatus,
+    dismiss: dismissStatus,
+    setReport: setStatusReport,
+  } = useStatusFlow({ frameworkRoot, projectRoot });
 
   const [installOutcome, setInstallOutcome] = useState<InstallOutcome>({ status: 'idle' });
   const [installing, setInstalling] = useState(false);
@@ -91,20 +96,6 @@ function App() {
       } catch {
         // ignore
       }
-    }
-  };
-
-  const handleCheckStatus = async () => {
-    setCheckingStatus(true);
-    setStatusError(null);
-    try {
-      const data = await status(frameworkRoot, projectRoot);
-      setStatusReport(data);
-    } catch (e) {
-      setStatusReport(null);
-      setStatusError(toCliError(e));
-    } finally {
-      setCheckingStatus(false);
     }
   };
 
@@ -158,10 +149,6 @@ function App() {
 
   const dismissInstallOutcome = () => setInstallOutcome({ status: 'idle' });
   const dismissInitOutcome = () => setInitOutcome({ status: 'idle' });
-  const dismissStatus = () => {
-    setStatusReport(null);
-    setStatusError(null);
-  };
 
   const hasAnyPath = frameworkRoot !== '' || projectRoot !== '';
   const showEmptyState =
