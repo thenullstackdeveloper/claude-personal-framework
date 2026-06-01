@@ -1,0 +1,7 @@
+extends: base
+skills:
+  - rust-hexagonal-rules
+  - tauri-patterns
+  - react-hexagonal-patterns
+  - zustand-patterns
+  - framer-motion-patterns
