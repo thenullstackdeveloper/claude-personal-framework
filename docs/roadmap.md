@@ -26,9 +26,9 @@ not pre-imagined.
 
 - *0* — extract `buildConfirmMessage` helper (`1dc8767`). ✓
 - *1* — extract `useDetectPath` hook (`639b68d`). ✓
-- *2* — extract `useCatalogFlow` hook. Pending.
-- *3* — extract `useStatusFlow` hook. Pending.
-- *4* — extract `useInitFlow` hook. Pending.
+- *2* — extract `useCatalogFlow` hook (`4d459d8`). ✓
+- *3* — extract `useStatusFlow` hook (`a1c67aa`). ✓
+- *4* — extract `useInitFlow` hook (`6c704ee`). ✓
 - *5* — extract `useInstallFlow` hook (depends on 0 + 3). Pending.
 - *6* — extract `usePathPicker` hook. Pending.
 - *7* — `App.tsx` tidy as composition root (conditional, only if
@@ -85,21 +85,29 @@ as an independent commit):
 - *Cost:* medium. Refactor itself is bounded (~1 day) plus
   whatever UX work the next sub-items end up justifying.
 
-### 2 · Presets for other personal stacks (React, React Native, Vue 3, Laravel)
+### 2 · Presets for the remaining personal stacks (React Native, Vue 3, Laravel)
 
-With the catalog format finalized (settings + CLAUDE.md included) and
-the catalog itself enriched (testing strategy skill, test-reviewer
-agent, agnostic architect + TS rules skill, commit-style skill),
-build first-class presets for each stack. Each preset needs at least
-one or two stack-specific agents or skills to be more than an empty
-`extends: base` shell.
+With the catalog format finalized and the `nestjs` and
+`tauri-rust-react` presets already shipped (each with its own
+stack-specific skills), three stacks remain on the personal radar:
 
-- *Why now:* unblocked. Content work, not engine work. Likely first
-  targets: react-native and nestjs presets enriched with their own
-  testing-rules skills (see Deferred 9). Better tackled after the
-  UI is polished so the install / status experience is solid when
-  exercising new presets.
-- *Cost:* medium per stack.
+- **React Native**: presumably reuses some of the React patterns from
+  `tauri-rust-react` but with its own testing surface (RNTL, native
+  module mocks) and likely a new `react-native-patterns` skill for
+  navigation, platform branches and gesture handling.
+- **Vue 3**: completely new territory in the catalog. Needs a
+  `vue-hexagonal-patterns` skill mirroring the React one (composables
+  as application layer, Pinia as the store port, etc.) and possibly
+  a `vue-testing-rules` skill.
+- **Laravel**: PHP, fundamentally different stack. The agnostic
+  `hexagonal-architect` covers principles, but a `laravel-hexagonal-
+  patterns` skill (Eloquent vs domain entities, service container as
+  composition root, queue jobs as adapters) would carry the weight.
+
+- *Why now:* unblocked. Content work per stack, not engine work.
+- *Cost:* medium per stack. Each stack ships independently when
+  there's a concrete project that pulls for it — not all three at
+  once on speculation.
 
 ### 3 · Technical debt cleanup
 
@@ -172,6 +180,14 @@ renumbered.
   - `29bc33a` engine: `Settings` wraps `Permissions + Hooks`; lockfile + drift carry settings hash.
   - `fed6857` engine: `Instructions` VO singleton concatenated from `instructions/<id>.md`; `.claude/CLAUDE.md` materialization; take-over guard via `UnmanagedClaudeMdError`.
   - `ea579e0` desktop: Instructions card, Settings/Instructions singleton drift in status, take-over UI with Retry, structured `CliError`, vitest + RTL baseline.
+
+- **`tauri-rust-react` catalog set** — green-field preset for Rust + Tauri 2 + React + TypeScript + Zustand + Framer Motion projects. Researched against verified primary sources before drafting (deep-research workflow, 109 agents, 22 verified claims, 3 refuted). Five new skills:
+  - `72f6d9f` `rust-hexagonal-rules` — Rust language specifics under hex (async fn in traits since 1.75, error handling per layer, traits as ports, workspace organization).
+  - `146914b` `tauri-patterns` — Tauri 2 in the adapter layer (state via `app.manage(Mutex)` + `State<'_, T>`, commands in modules not `lib.rs`, `tauri::ipc::Channel<T>` for hot paths instead of `Window::emit`, sidecars with `-$TARGET_TRIPLE` suffix).
+  - `366acd3` `zustand-patterns` — Zustand v5 specifics (selectors simple by default, `useShallow` only for selectors that build fresh refs, `subscribeWithSelector` as the external-subscriptions port, slices as a growth response not a default).
+  - `a424ce7` `framer-motion-patterns` — Motion decisions beyond the README (individual transforms NOT GPU-accelerated, View Transitions API does not replace Motion for interruptible/interactive animations, layout-prop has real cost).
+  - `aa9d1d0` `react-hexagonal-patterns` — frontend hex spine (four-layer table, custom hooks as application layer, stores as ports, adapters wired from composition root, effects discipline).
+  - `862dca8` preset `tauri-rust-react.yaml` wiring all five plus the inherited base skills.
 
 - **Catalog calibration from Tubegist refactor sweep** — Item 2 of Now (Calibrate `hexagonal-refactor-nestjs`) closed plus three related upgrades that grew naturally from the sweep:
   - `944388d` skill: `commit-style` documenting message conventions (rule zero "no AI attribution", Conventional Commits with type table, four named body patterns, HEREDOC for multi-line, `--no-ff` merges). Added to `base` preset.
