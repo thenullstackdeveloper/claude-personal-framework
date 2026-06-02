@@ -31,7 +31,7 @@ not pre-imagined.
 - *4* — extract `useInitFlow` hook (`6c704ee`). ✓
 - *5* — extract `useInstallFlow` hook + collapse useStatusFlow's
   setReport escape hatch into `checkSilently` (`819fde7`). ✓
-- *6* — extract `usePathPicker` hook. Pending.
+- *6* — extract `usePathPicker` hook (`853f0e5`). ✓
 - *7* — `App.tsx` tidy as composition root (conditional, only if
   anything left to clean). Pending.
 
