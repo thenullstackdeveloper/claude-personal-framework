@@ -163,10 +163,10 @@ function InitializeBlock({ presets, initializing, busy, onInitialize }: Initiali
             value={selected}
             onChange={(e) => setSelected(e.target.value)}
             disabled={busy}
-            className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm font-mono text-zinc-100 focus:border-violet-500 focus:outline-none disabled:opacity-50"
+            className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm font-mono text-zinc-100 focus:border-violet-500 focus:outline-none disabled:opacity-50 [color-scheme:dark]"
           >
             {presets.map((p) => (
-              <option key={p.name} value={p.name}>
+              <option key={p.name} value={p.name} className="bg-zinc-950 text-zinc-100">
                 {p.name}
                 {p.extends.length > 0 ? ` (extends ${p.extends.join(', ')})` : ''}
               </option>
