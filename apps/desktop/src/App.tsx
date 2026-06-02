@@ -1,4 +1,3 @@
-import { open } from '@tauri-apps/plugin-dialog';
 import { Sparkles } from 'lucide-react';
 import { CatalogView } from './components/catalog-view';
 import { InstallReport } from './components/install-report';
@@ -8,6 +7,7 @@ import { useCatalogFlow } from './hooks/use-catalog-flow';
 import { useDetectPath } from './hooks/use-detect-path';
 import { useInitFlow } from './hooks/use-init-flow';
 import { useInstallFlow } from './hooks/use-install-flow';
+import { usePathPicker } from './hooks/use-path-picker';
 import { useStatusFlow } from './hooks/use-status-flow';
 import { detectPath } from './lib/api';
 import { usePersistedState } from './lib/persisted-state';
@@ -58,14 +58,11 @@ function App() {
     onSuccess: refreshProjectDetection,
   });
 
+  const { browseFramework, browseProject } = usePathPicker();
+
   const handleBrowseFramework = async () => {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: 'Select framework root',
-      ...(frameworkRoot && { defaultPath: frameworkRoot }),
-    });
-    if (typeof selected !== 'string') return;
+    const selected = await browseFramework(frameworkRoot);
+    if (selected === null) return;
     setFrameworkRoot(selected);
 
     if (!projectRoot) {
@@ -79,13 +76,8 @@ function App() {
   };
 
   const handleBrowseProject = async () => {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: 'Select project root',
-      ...(projectRoot && { defaultPath: projectRoot }),
-    });
-    if (typeof selected !== 'string') return;
+    const selected = await browseProject(projectRoot);
+    if (selected === null) return;
     setProjectRoot(selected);
 
     if (!frameworkRoot) {
