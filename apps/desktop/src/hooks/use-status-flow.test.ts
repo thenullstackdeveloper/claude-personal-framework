@@ -135,25 +135,38 @@ describe('useStatusFlow', () => {
     expect(result.current.error).toBeNull();
   });
 
-  it('setReport overrides the report without touching the error state', async () => {
-    mockedInvoke.mockRejectedValueOnce({ code: 'X', message: 'fail' });
+  it('checkSilently() updates report on success', async () => {
+    mockedInvoke.mockResolvedValueOnce(driftedReport);
 
+    const { result } = renderHook(() =>
+      useStatusFlow({ frameworkRoot: '/fw', projectRoot: '/proj' }),
+    );
+    await act(async () => {
+      await result.current.checkSilently();
+    });
+
+    expect(result.current.report).toEqual(driftedReport);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('checkSilently() leaves report and error untouched on failure', async () => {
+    // Prime an existing report and error
+    mockedInvoke.mockResolvedValueOnce(driftedReport);
     const { result } = renderHook(() =>
       useStatusFlow({ frameworkRoot: '/fw', projectRoot: '/proj' }),
     );
     await act(async () => {
       await result.current.check();
     });
-    expect(result.current.error).toEqual({ code: 'X', message: 'fail' });
+    expect(result.current.report).toEqual(driftedReport);
 
-    act(() => {
-      result.current.setReport(emptyReport);
+    // Now a silent check fails — neither report nor error change
+    mockedInvoke.mockRejectedValueOnce({ code: 'X', message: 'boom' });
+    await act(async () => {
+      await result.current.checkSilently();
     });
-    expect(result.current.report).toEqual(emptyReport);
-    // setReport is the cross-flow refresh escape hatch — it does NOT
-    // clear the error on its own. Callers that want a "fresh slate"
-    // call dismiss() first.
-    expect(result.current.error).toEqual({ code: 'X', message: 'fail' });
+    expect(result.current.report).toEqual(driftedReport);
+    expect(result.current.error).toBeNull();
   });
 
   it('check() uses the latest paths after a rerender', async () => {

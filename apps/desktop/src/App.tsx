@@ -1,6 +1,5 @@
-import { ask, open } from '@tauri-apps/plugin-dialog';
+import { open } from '@tauri-apps/plugin-dialog';
 import { Sparkles } from 'lucide-react';
-import { useState } from 'react';
 import { CatalogView } from './components/catalog-view';
 import { InstallReport } from './components/install-report';
 import { SetupForm } from './components/setup-form';
@@ -8,22 +7,10 @@ import { StatusView } from './components/status-view';
 import { useCatalogFlow } from './hooks/use-catalog-flow';
 import { useDetectPath } from './hooks/use-detect-path';
 import { useInitFlow } from './hooks/use-init-flow';
+import { useInstallFlow } from './hooks/use-install-flow';
 import { useStatusFlow } from './hooks/use-status-flow';
-import {
-  type CliError,
-  type InstallReport as InstallReportData,
-  detectPath,
-  install,
-  status,
-  toCliError,
-} from './lib/api';
-import { buildConfirmMessage } from './lib/confirm-message';
+import { detectPath } from './lib/api';
 import { usePersistedState } from './lib/persisted-state';
-
-type InstallOutcome =
-  | { status: 'idle' }
-  | { status: 'success'; data: InstallReportData }
-  | { status: 'error'; error: CliError };
 
 function App() {
   const [frameworkRoot, setFrameworkRoot] = usePersistedState('cfw.frameworkRoot', '');
@@ -44,12 +31,21 @@ function App() {
     error: statusError,
     checking: checkingStatus,
     check: handleCheckStatus,
+    checkSilently: refreshStatusSilently,
     dismiss: dismissStatus,
-    setReport: setStatusReport,
   } = useStatusFlow({ frameworkRoot, projectRoot });
 
-  const [installOutcome, setInstallOutcome] = useState<InstallOutcome>({ status: 'idle' });
-  const [installing, setInstalling] = useState(false);
+  const {
+    outcome: installOutcome,
+    installing,
+    install: handleInstall,
+    dismiss: dismissInstallOutcome,
+  } = useInstallFlow({
+    frameworkRoot,
+    projectRoot,
+    statusReport,
+    onSuccess: refreshStatusSilently,
+  });
 
   const {
     outcome: initOutcome,
@@ -101,36 +97,6 @@ function App() {
       }
     }
   };
-
-  const handleInstall = async () => {
-    const confirmMsg = buildConfirmMessage(projectRoot, statusReport);
-    const confirmed = await ask(confirmMsg, {
-      title: 'Confirm install',
-      kind: 'warning',
-      okLabel: 'Install',
-      cancelLabel: 'Cancel',
-    });
-    if (!confirmed) return;
-
-    setInstalling(true);
-    setInstallOutcome({ status: 'idle' });
-    try {
-      const data = await install(frameworkRoot, projectRoot);
-      setInstallOutcome({ status: 'success', data });
-      try {
-        const fresh = await status(frameworkRoot, projectRoot);
-        setStatusReport(fresh);
-      } catch {
-        // ignore — status refresh is best-effort
-      }
-    } catch (e) {
-      setInstallOutcome({ status: 'error', error: toCliError(e) });
-    } finally {
-      setInstalling(false);
-    }
-  };
-
-  const dismissInstallOutcome = () => setInstallOutcome({ status: 'idle' });
 
   const hasAnyPath = frameworkRoot !== '' || projectRoot !== '';
   const showEmptyState =
