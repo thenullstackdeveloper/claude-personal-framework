@@ -1,5 +1,6 @@
 import { Sparkles } from 'lucide-react';
 import { CatalogView } from './components/catalog-view';
+import { InitReport } from './components/init-report';
 import { InstallReport } from './components/install-report';
 import { SetupForm } from './components/setup-form';
 import { StatusView } from './components/status-view';
@@ -128,38 +129,17 @@ function App() {
         />
 
         {initOutcome.status === 'success' && (
-          <section className="bg-emerald-950/40 border border-emerald-900 rounded-lg p-4 text-sm text-emerald-100 flex items-start justify-between gap-4">
-            <div>
-              <strong className="font-semibold">Project initialized.</strong>{' '}
-              <span className="text-emerald-200/80">
-                Preset <span className="font-mono">{initOutcome.presetName}</span>, manifest at{' '}
-                <span className="font-mono text-xs">{initOutcome.manifestPath}</span>. You can
-                install now.
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={dismissInitOutcome}
-              className="text-emerald-300/80 hover:text-emerald-100 text-xs"
-            >
-              dismiss
-            </button>
-          </section>
+          <InitReport
+            status="success"
+            data={{
+              presetName: initOutcome.presetName,
+              manifestPath: initOutcome.manifestPath,
+            }}
+            onDismiss={dismissInitOutcome}
+          />
         )}
         {initOutcome.status === 'error' && (
-          <section className="bg-red-950/40 border border-red-900 rounded-lg p-4 text-sm text-red-200 flex items-start justify-between gap-4">
-            <div>
-              <strong className="font-semibold">Initialize failed: </strong>
-              <span className="font-mono text-xs text-red-300/80">{initOutcome.error.message}</span>
-            </div>
-            <button
-              type="button"
-              onClick={dismissInitOutcome}
-              className="text-red-300/80 hover:text-red-100 text-xs"
-            >
-              dismiss
-            </button>
-          </section>
+          <InitReport status="error" error={initOutcome.error} onDismiss={dismissInitOutcome} />
         )}
 
         {installOutcome.status === 'success' && (
