@@ -38,7 +38,24 @@ not pre-imagined.
   tracked separately as 1.UX.8.
 
 **UX sub-items surfaced during sub-phase 1 smoke tests** (each ships
-as an independent commit):
+as an independent commit).
+
+**Recommended next up** (my vote, pick whichever fits the time
+available):
+
+1. **1.UX.4** — fix preset dropdown white-on-white. ~5 min,
+   visible immediately, low risk. Good first warm-up after the
+   refactor.
+2. **1.UX.8** — Dismiss on `catalogError` and `statusError` banners,
+   ideally by extracting a generic `<ErrorBanner>` component (the
+   "option C" deferred in sub-phase 7). ~30 min, structural, finishes
+   the job the App.tsx refactor left visible.
+
+Then 1.UX.5 (Load catalog re-press feedback) and 1.UX.3 / 1.UX.6
+(stale state on path change, both in the same family — could ship
+together) are the next concrete candidates. 1.UX.7 (project-dir
+modal) is the heaviest (three layers: engine error type + Rust
+command + UI modal) and earns its own session.
 
 - *1.UX.1* — **Tooltips on disabled buttons.** Today buttons go grey
   with no explanation of what's missing (catalog, preset, paths).
@@ -182,6 +199,7 @@ renumbered.
 | 10 · Calibrate `hexagonal-test-reviewer` agent | First live use of the agent on a real project surfaces gaps or false positives in the prompt. Same calibration cycle that closed the refactor agent. |
 | 11 · Promote `commit-style` to the CLAUDE.md install flow | The skill exists but each project's CLAUDE.md still needs the "no AI attribution / never commit without OK" rules redundantly. When item 13 (global bin install) ships, evaluate if `claude-fw install` should also patch / append project CLAUDE.md from the catalog. |
 | 12 · Surface frontmatter parse errors in `list`/`install` | A second catalog artifact silently ends up without description because of a YAML edge case (today: `: ` in plain scalar broke `hexagonal-test-reviewer` — commit `1f0ad0a`). Today `extractFrontmatterDescription` swallows parse errors and returns `''`, which is defensive but hard to diagnose. When it bites again, change the contract to emit a warning to stderr (or fail loudly in `--json`) when frontmatter exists but description is empty / unparseable. |
+| 14 · Calibrate `tauri-rust-react` catalog set | First live use of the preset on Angel's Plinth side project (Stream-Deck-style touch panel for sim inputs / telemetry — see memory `project_plinth`) surfaces real gaps or false advice in `rust-hexagonal-rules`, `tauri-patterns`, `react-hexagonal-patterns`, `zustand-patterns`, `framer-motion-patterns`. Same calibration cycle that closed `hexagonal-refactor-nestjs` after the Tubegist sweep — not anticipatory. |
 | 13 · Global bin install for the CLI | Now items 1, 2 and 3 closed. Ship `claude-fw` as a globally invokable command (`pnpm i -g` from the repo, or publishing to a scoped registry). Deferred because installing it globally before the UI is polished, the catalog has more stacks, and the engine debt is cleared exports an unfinished feel to anyone who tries it from outside. ≈ 1 h once unblocked. |
 
 ---
