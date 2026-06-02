@@ -32,8 +32,10 @@ not pre-imagined.
 - *5* — extract `useInstallFlow` hook + collapse useStatusFlow's
   setReport escape hatch into `checkSilently` (`819fde7`). ✓
 - *6* — extract `usePathPicker` hook (`853f0e5`). ✓
-- *7* — `App.tsx` tidy as composition root (conditional, only if
-  anything left to clean). Pending.
+- *7* — extract `<InitReport>` component parallel to `<InstallReport>`
+  (`0f21998`). ✓ — App.tsx ends at 198 lines from ~350 originally
+  (-43%); two inline error banners remain (catalogError, statusError),
+  tracked separately as 1.UX.8.
 
 **UX sub-items surfaced during sub-phase 1 smoke tests** (each ships
 as an independent commit):
@@ -63,6 +65,15 @@ as an independent commit):
   preset base" from project A is still visible after switching to
   project B). Same family as 1.UX.3 (stale status report). Clear
   these outcomes when the Project root field changes.
+- *1.UX.8* — **Missing Dismiss on `catalogError` / `statusError`
+  banners.** Surfaced during sub-phase 7 smoke tests: when a Load
+  catalog or a Check status fails with a `CliError`, the red banner
+  shown in App.tsx (still inline as a `<section>`, not yet a component)
+  has no Dismiss button — the only way to clear it is to fix the input
+  and retry. Either add a dismiss to each inline section or finish the
+  job started in sub-phase 7 by extracting a generic `<ErrorBanner>`
+  component (the "option C" deliberately deferred there). Each ships
+  as an independent commit.
 - *1.UX.7* — **Friendly handling when the project directory does not
   exist.** Today if the user types a Project root path whose folder
   does not exist, `initialize` falls through to a write that triggers
