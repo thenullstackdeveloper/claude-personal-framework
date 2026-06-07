@@ -1,7 +1,9 @@
 agents:
   - hexagonal-architect
   - pr-creator
+  - plane-pm
 skills:
   - commit-style
   - typescript-hexagonal-rules
   - hexagonal-testing-strategy
+  - plane-conventions
