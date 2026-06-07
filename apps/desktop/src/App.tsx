@@ -1,5 +1,6 @@
 import { Sparkles } from 'lucide-react';
 import { CatalogView } from './components/catalog-view';
+import { ErrorBanner } from './components/error-banner';
 import { InitReport } from './components/init-report';
 import { InstallReport } from './components/install-report';
 import { SetupForm } from './components/setup-form';
@@ -22,6 +23,7 @@ function App() {
     error: catalogError,
     loading: loadingCatalog,
     load: handleLoadCatalog,
+    dismissError: dismissCatalogError,
   } = useCatalogFlow(frameworkRoot);
 
   const { detection: projectDetection, refresh: refreshProjectDetection } =
@@ -159,19 +161,17 @@ function App() {
         )}
 
         {statusError && (
-          <section className="bg-red-950/40 border border-red-900 rounded-lg p-4 text-sm text-red-200">
-            <strong className="font-semibold">Status check failed: </strong>
-            <span className="font-mono text-xs text-red-300/80">{statusError.message}</span>
-          </section>
+          <ErrorBanner title="Status check failed" error={statusError} onDismiss={dismissStatus} />
         )}
 
         {statusReport && <StatusView report={statusReport} onDismiss={dismissStatus} />}
 
         {catalogError && (
-          <section className="bg-red-950/40 border border-red-900 rounded-lg p-4 text-sm text-red-200">
-            <strong className="font-semibold">Catalog load failed: </strong>
-            <span className="font-mono text-xs text-red-300/80">{catalogError.message}</span>
-          </section>
+          <ErrorBanner
+            title="Catalog load failed"
+            error={catalogError}
+            onDismiss={dismissCatalogError}
+          />
         )}
 
         {catalog && <CatalogView report={catalog} />}

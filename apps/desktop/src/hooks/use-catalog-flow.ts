@@ -22,6 +22,7 @@ export const useCatalogFlow = (
   error: CliError | null;
   loading: boolean;
   load: () => Promise<void>;
+  dismissError: () => void;
 } => {
   const [catalog, setCatalog] = useState<CatalogReport | null>(null);
   const [error, setError] = useState<CliError | null>(null);
@@ -41,5 +42,9 @@ export const useCatalogFlow = (
     }
   }, [frameworkRoot]);
 
-  return { catalog, error, loading, load };
+  const dismissError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  return { catalog, error, loading, load, dismissError };
 };

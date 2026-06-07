@@ -115,6 +115,50 @@ describe('useCatalogFlow', () => {
     expect(result.current.catalog).toEqual(emptyCatalog);
   });
 
+  it('dismissError() clears the error without touching the loaded catalog', async () => {
+    mockedInvoke
+      .mockResolvedValueOnce(sampleCatalog)
+      .mockRejectedValueOnce({ code: 'X', message: 'second-fail' });
+
+    const { result } = renderHook(() => useCatalogFlow('/framework'));
+    await act(async () => {
+      await result.current.load();
+    });
+    // First load OK leaves us with a catalog.
+
+    await act(async () => {
+      await result.current.load();
+    });
+    // Second load fails: catalog should be cleared per current contract...
+    expect(result.current.catalog).toBeNull();
+    expect(result.current.error).toEqual({ code: 'X', message: 'second-fail' });
+
+    act(() => {
+      result.current.dismissError();
+    });
+    expect(result.current.error).toBeNull();
+    expect(result.current.catalog).toBeNull();
+  });
+
+  it('dismissError() keeps a previously loaded catalog visible (error-only branch)', async () => {
+    // Simulate a hypothetical state where catalog is loaded AND an error exists
+    // (defensive — today the contract clears catalog on failure, but dismissError
+    //  must NOT touch catalog regardless).
+    mockedInvoke.mockResolvedValueOnce(sampleCatalog);
+
+    const { result } = renderHook(() => useCatalogFlow('/framework'));
+    await act(async () => {
+      await result.current.load();
+    });
+    expect(result.current.catalog).toEqual(sampleCatalog);
+
+    act(() => {
+      result.current.dismissError();
+    });
+    expect(result.current.catalog).toEqual(sampleCatalog);
+    expect(result.current.error).toBeNull();
+  });
+
   it('uses the updated frameworkRoot when rerendered with a new value', async () => {
     mockedInvoke.mockResolvedValueOnce(emptyCatalog);
 
