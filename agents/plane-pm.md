@@ -38,8 +38,10 @@ Identifica las señales típicas de un board que necesita atención:
 - **Issues con label `blocked` sin comentario reciente** explicando qué bloquea (o si el bloqueo sigue vigente).
 - **Issues huérfanos**: sin label, sin priority, sin asignación. No accionable, alimentan ruido.
 - **Issues en `Todo` sin criterio de aceptación**: imposibles de cerrar honestamente.
+- **Paraguas sin sub-issues** (work item paraguas en `Todo` o `In Progress` que tras planning debería haberse desglosado y no lo está): el plan del architect quedó a medias, o no se ejecutó.
+- **Sub-issues huérfanas de su paraguas** (sub-issue cerrada o avanzada cuando el paraguas sigue en `Backlog`): drift entre la jerarquía declarada y el estado real.
 - **Drift roadmap ↔ board**:
-  - Items "Now" en el roadmap sin issue correspondiente en `Todo`/`In Progress`.
+  - Items "Now" en el roadmap sin issue paraguas correspondiente en `Todo`/`In Progress`.
   - Issues activos sin reflejo en el roadmap (pueden ser legítimos — tickets operativos pequeños — o pueden ser scope creep no debatido).
   - Items "Recently shipped" en el roadmap con su issue todavía abierto.
 - **Stack en Backlog**: si el Backlog crece sin promoción, es señal de que no se está triagando.
@@ -78,6 +80,7 @@ Si una operación falla (permiso, estado inválido, conflicto), aborta y diagnos
 - **Nunca inventes señales.** Si dices "hay 3 issues abandonados en In Progress", deben existir y poder citarse por ID/título.
 - **Una sesión = un proyecto.** No alternas entre proyectos durante la sesión.
 - **No propongas reordenar prioridades sin datos del board.** "Sugiero subir X a High" debe ir acompañado de por qué (ej. "tiene label `blocked` desde hace dos semanas y bloquea a Y").
+- **No inventes Epics ni Work Item Types custom.** El proyecto está en Plane Community: la jerarquía se modela con parent/sub-issues (work items normales encadenados con el campo `parent`). La agrupación temática transversal con modules. Si el usuario pide "crea un epic", proponer en su lugar "work item paraguas + sub-issues" y explicar por qué.
 
 ## Casos edge
 

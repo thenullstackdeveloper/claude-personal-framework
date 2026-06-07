@@ -126,6 +126,60 @@ Default de Plane, con la semántica que Angel les da:
 
 Transiciones esperadas: `Backlog → Todo → In Progress → Done`. Saltarse `Todo` (Backlog → In Progress directamente) está bien si empieza a trabajarse el día que se decide.
 
+## Jerarquía y agrupación
+
+Angel está en **Plane Community Edition**, lo cual define qué primitivas hay disponibles:
+
+- **NO existen Epics ni Work Item Types custom** en Community. Esas dos primitivas son de Plane Pro. Olvidarlas — no hace falta y la documentación oficial de Plane las menciona en muchos contextos asumiendo Pro.
+- La jerarquía se modela con **parent / sub-issues** sobre work items normales.
+- La agrupación temática se modela con **modules**.
+- La ventana temporal (sprint) se modela con **cycles**.
+
+### Parent / sub-issues
+
+Primitiva canónica para "tarea con sub-tareas". Cualquier work item puede tener:
+
+- **Un parent** (campo `parent` en su payload).
+- **N sub-issues** (work items que apuntan a él vía `parent`).
+
+Casos típicos:
+
+- Un Now item del roadmap se modela como **work item paraguas** + **N sub-issues**, una por sub-fase. Cuando se aborda en planning con `hexagonal-architect`, las sub-fases salidas del plan se crean como sub-issues con `parent = paraguas_id`.
+- Un bug grande que requiere varios commits puede tener una sub-issue por commit / por fase de la corrección.
+
+El paraguas tiene su propio label de tipo (`feat` si añade funcionalidad nueva, `refactor` si reestructura, etc.). Cada sub-issue tiene el suyo según lo que aporte.
+
+### Modules
+
+Agrupación **temática transversal** (no jerárquica). Un work item puede pertenecer a varios modules a la vez; los modules cruzan paraguas / sub-issues sin importar quién es parent de quién.
+
+Útil para:
+
+- Temas que cruzan varios Now items ("Linux-first", "Refactor de UX", "Documentación").
+- Iniciativas largas que agrupan trabajo de tipos heterogéneos.
+
+NO útil para:
+
+- Sustituir la jerarquía padre-hijo. Si el trabajo tiene una raíz clara, usar parent/sub-issues.
+- Etiquetar tipo de trabajo. Para eso están los labels.
+
+Activos por defecto en Community (`module_view: true`).
+
+### Cycles
+
+**Ventanas temporales** tipo sprint. Un work item pertenece a 0 o 1 cycle.
+
+Útil cuando Angel quiera comprometerse a una ventana ("esta semana entran estos 5 items, el resto al siguiente cycle"). Desactivados por defecto en Community (`cycle_view: false`); activar a posteriori con `update_project_features({ cycles: true })` solo cuando se vaya a usar de verdad. No anticipatorio.
+
+### Cómo decidir
+
+- ¿Es una sub-tarea de algo concreto? → **parent**.
+- ¿Cruza varios paraguas por tema? → **module**.
+- ¿Es compromiso de "lo entrego en X días"? → **cycle**.
+- ¿Es clasificación de tipo (bug, feat, ...)? → **label**.
+
+Los cuatro son ortogonales y pueden combinarse: una sub-issue con `parent` (jerarquía) puede estar en un `module` (tema) y un `cycle` (ventana) y llevar el label `fix` (tipo).
+
 ## Vinculación con commits y PRs
 
 - **El subject del commit no menciona el ticket.** El subject sigue Conventional Commits y se lee sin ruido en `git log`.
@@ -196,3 +250,6 @@ Si el usuario solo quiere contexto ("¿qué tengo en In Progress?"), responder c
 - Issues colgados en `In Progress` semanas sin movimiento — o se trabaja, o vuelve a `Todo`, o se documenta `blocked`.
 - Crear ticket para todo lo que toca el teclado. La skill `commit-style` ya dice que cada commit explica el porqué; no duplicar esa explicación en un ticket si el work cabe en un commit.
 - Cruzar contexto entre proyectos asumiendo que el MCP es global (es por-proyecto).
+- **Inventar epics en Community.** No existen. Si necesitas agrupar trabajo bajo un paraguas, usa parent/sub-issues. Si te encuentras pidiéndole a Claude "crea un epic", reformula a "crea un work item paraguas con sub-issues".
+- **Confundir module con jerarquía.** Un module agrupa por tema, no es padre de nada. Si dos work items tienen relación padre-hijo, va por `parent`, no por module compartido.
+- **Forzar cycles cuando no hay compromiso temporal real.** Activarlos solo cuando vayas a comprometerte a una ventana de entrega; en proyectos personales sin deadline es ceremonia sin valor.
