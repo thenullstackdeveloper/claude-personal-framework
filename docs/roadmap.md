@@ -43,19 +43,25 @@ as an independent commit).
 **Recommended next up** (my vote, pick whichever fits the time
 available):
 
-1. **1.UX.4** — fix preset dropdown white-on-white. ~5 min,
-   visible immediately, low risk. Good first warm-up after the
-   refactor.
-2. **1.UX.8** — Dismiss on `catalogError` and `statusError` banners,
-   ideally by extracting a generic `<ErrorBanner>` component (the
-   "option C" deferred in sub-phase 7). ~30 min, structural, finishes
-   the job the App.tsx refactor left visible.
+1. **1.UX.9** — engine throws `InvalidFrameworkRootError` on a
+   bogus framework root + UI catches it via the existing
+   `<ErrorBanner>` plumbing. ~30–45 min, fixes a fresh bug surfaced
+   today (silent "0 / 0 / 0" catalog), reuses the infra just shipped
+   in 1.UX.8.
+2. **1.UX.3 + 1.UX.6** — same family (clear stale status report and
+   stale outcome banners on Project root change). ~30 min together,
+   small surface, removes confusing cross-project carryover.
 
-Then 1.UX.5 (Load catalog re-press feedback) and 1.UX.3 / 1.UX.6
-(stale state on path change, both in the same family — could ship
-together) are the next concrete candidates. 1.UX.7 (project-dir
-modal) is the heaviest (three layers: engine error type + Rust
-command + UI modal) and earns its own session.
+Then 1.UX.5 (Load catalog re-press feedback, ~15 min cosmetic) and
+the 1.UX.1 + 1.UX.2 pair (tooltips + disable Install, interlocked).
+1.UX.7 (project-dir modal) is the heaviest (three layers: engine
+error type + Rust command + UI modal) and earns its own session.
+
+**Shipped so far** (UX block):
+
+- 1.UX.4 — preset dropdown legible on dark theme — commit `98baf92`.
+- 1.UX.8 — Dismiss on `catalogError` / `statusError` via generic
+  `<ErrorBanner>` — commit `2e712cd`.
 
 - *1.UX.1* — **Tooltips on disabled buttons.** Today buttons go grey
   with no explanation of what's missing (catalog, preset, paths).
@@ -68,9 +74,11 @@ command + UI modal) and earns its own session.
   Status panel keeps showing the previous project's drift report
   after the Project root field changes. Clear it on path change (or
   re-run check automatically — TBD).
-- *1.UX.4* — **Fix preset dropdown styling.** The `<select>` inside
-  the "Project not initialized" block renders white-on-white, making
-  the selected preset invisible. Doesn't inherit the dark theme.
+- *1.UX.4* — **Fix preset dropdown styling.** ✓ shipped `98baf92`.
+  The `<select>` inside the "Project not initialized" block was
+  rendering white-on-white in webkit/Tauri-Linux; fixed with
+  `color-scheme: dark` on the select + explicit classes on
+  `<option>`.
 - *1.UX.5* — **Visible feedback on Load catalog re-press.** When the
   catalog is already loaded and the button is pressed again, only a
   microsecond flicker happens. Add a toast or visible pulse
@@ -83,14 +91,11 @@ command + UI modal) and earns its own session.
   project B). Same family as 1.UX.3 (stale status report). Clear
   these outcomes when the Project root field changes.
 - *1.UX.8* — **Missing Dismiss on `catalogError` / `statusError`
-  banners.** Surfaced during sub-phase 7 smoke tests: when a Load
-  catalog or a Check status fails with a `CliError`, the red banner
-  shown in App.tsx (still inline as a `<section>`, not yet a component)
-  has no Dismiss button — the only way to clear it is to fix the input
-  and retry. Either add a dismiss to each inline section or finish the
-  job started in sub-phase 7 by extracting a generic `<ErrorBanner>`
-  component (the "option C" deliberately deferred there). Each ships
-  as an independent commit.
+  banners.** ✓ shipped `2e712cd`. Closed via the "option C" path:
+  extracted a generic `<ErrorBanner>` component, added
+  `dismissError()` to `useCatalogFlow` (keeps the loaded catalog
+  intact), and reused the existing `useStatusFlow.dismiss()` for
+  the status side. App.tsx now has no inline error `<section>`.
 - *1.UX.7* — **Friendly handling when the project directory does not
   exist.** Today if the user types a Project root path whose folder
   does not exist, `initialize` falls through to a write that triggers
@@ -107,6 +112,22 @@ command + UI modal) and earns its own session.
   `useInitFlow` or its caller). Keeps the engine agnostic to client
   policy — CLI can stay strict, desktop is friendly. Likely shipped
   as 2-3 independent commits per Angel's commit hygiene rule.
+- *1.UX.9* — **Silent empty catalog when framework root is invalid.**
+  Surfaced during 1.UX.8 smoke tests (2026-06-03): pointing Framework
+  root at a path that does not exist returns a "success" catalog with
+  `{ presets: [], agents: [], skills: [], commands: [], instructions: [] }`
+  and the UI happily renders `<CatalogView>` with "0 / 0 / 0 / 0 / 0",
+  no hint that the path was bogus (verified with `node packages/cli list
+  --framework /tmp/nope-1.UX.8 --json` → empty arrays, exit 0). Root
+  cause is in the engine: `CatalogReader.listArtifactSummaries` swallows
+  missing subdirs and yields `[]`. Two-step fix: (a) engine validates
+  framework root exists and contains at least one of `presets/ agents/
+  skills/ commands/ instructions/` — if none, throw a typed
+  `InvalidFrameworkRootError` (`code: 'INVALID_FRAMEWORK_ROOT'`); (b)
+  desktop catches it via the existing `<ErrorBanner>` plumbing — no UI
+  surface change needed beyond the new error code. Related to but
+  distinct from Deferred 15 (which rethinks WHERE the catalog lives);
+  this just makes today's model honest.
 
 - *Why now:* the file size and lack of separation makes adding any
   UX or functionality friction. Refactoring first removes the
