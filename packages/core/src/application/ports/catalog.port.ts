@@ -2,13 +2,16 @@ import type { Agent } from '../../domain/model/agent.js';
 import type {
   AgentSummary,
   CommandSummary,
+  GitHookSummary,
   InstructionsSummary,
   SkillSummary,
 } from '../../domain/model/artifact-summary.js';
 import type { Command } from '../../domain/model/command.js';
+import type { GitHook } from '../../domain/model/git-hook.js';
 import type {
   AgentId,
   CommandId,
+  HookName,
   InstructionsId,
   SkillId,
 } from '../../domain/model/identifiers.js';
@@ -23,9 +26,11 @@ export interface CatalogPort {
   listSkills(): Promise<readonly SkillSummary[]>;
   listCommands(): Promise<readonly CommandSummary[]>;
   listInstructions(): Promise<readonly InstructionsSummary[]>;
+  listGitHooks(): Promise<readonly GitHookSummary[]>;
 
   readAgent(id: AgentId): Promise<Agent>;
   readSkill(id: SkillId): Promise<Skill>;
   readCommand(id: CommandId): Promise<Command>;
   readInstructions(id: InstructionsId): Promise<Instructions>;
+  readGitHook(hookName: HookName): Promise<GitHook>;
 }

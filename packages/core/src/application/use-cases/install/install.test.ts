@@ -4,9 +4,11 @@ import { Agent } from '../../../domain/model/agent.js';
 import { ArtifactRef } from '../../../domain/model/artifact-ref.js';
 import { Command } from '../../../domain/model/command.js';
 import { ContentHash } from '../../../domain/model/content-hash.js';
+import { GitHook } from '../../../domain/model/git-hook.js';
 import {
   AgentId,
   CommandId,
+  HookName,
   InstructionsId,
   PresetName,
   SkillId,
@@ -20,11 +22,12 @@ import { Settings } from '../../../domain/model/settings.js';
 import { Skill } from '../../../domain/model/skill.js';
 import type {
   CatalogPort,
+  GitConfigPort,
   LockfileStorePort,
   ProjectInspectorPort,
   WriterPort,
 } from '../../ports/index.js';
-import { UnmanagedClaudeMdError } from './errors.js';
+import { UnmanagedClaudeMdError, UnmanagedGitHookError } from './errors.js';
 import { install } from './install.use-case.js';
 
 class InMemoryCatalog implements CatalogPort {
@@ -34,6 +37,7 @@ class InMemoryCatalog implements CatalogPort {
     private readonly skills: Map<string, string> = new Map(),
     private readonly commands: Map<string, string> = new Map(),
     private readonly instructions: Map<string, string> = new Map(),
+    private readonly gitHooks: Map<string, string> = new Map(),
   ) {}
 
   async listPresets(): Promise<readonly Preset[]> {
@@ -55,6 +59,10 @@ class InMemoryCatalog implements CatalogPort {
       id: InstructionsId.of(id),
       description: '',
     }));
+  }
+
+  async listGitHooks() {
+    return [...this.gitHooks.keys()].map((name) => ({ hookName: HookName.of(name) }));
   }
 
   async readAgent(id: AgentId): Promise<Agent> {
@@ -88,6 +96,14 @@ class InMemoryCatalog implements CatalogPort {
     }
     return Instructions.of(content);
   }
+
+  async readGitHook(name: HookName): Promise<GitHook> {
+    const content = this.gitHooks.get(name);
+    if (content === undefined) {
+      throw new ArtifactNotFoundError(`git-hook "${name}" not in fake catalog`);
+    }
+    return GitHook.of(name, content);
+  }
 }
 
 class RecordingWriter implements WriterPort {
@@ -97,12 +113,14 @@ class RecordingWriter implements WriterPort {
     commands: Command[];
     settings: Settings[];
     instructions: Instructions[];
+    gitHooks: GitHook[];
   } = {
     agents: [],
     skills: [],
     commands: [],
     settings: [],
     instructions: [],
+    gitHooks: [],
   };
   deleted: {
     agents: AgentId[];
@@ -110,12 +128,14 @@ class RecordingWriter implements WriterPort {
     commands: CommandId[];
     settingsCount: number;
     instructionsCount: number;
+    gitHooks: HookName[];
   } = {
     agents: [],
     skills: [],
     commands: [],
     settingsCount: 0,
     instructionsCount: 0,
+    gitHooks: [],
   };
 
   async writeAgent(agent: Agent): Promise<void> {
@@ -148,6 +168,12 @@ class RecordingWriter implements WriterPort {
   async deleteInstructions(): Promise<void> {
     this.deleted.instructionsCount++;
   }
+  async writeGitHook(hook: GitHook): Promise<void> {
+    this.written.gitHooks.push(hook);
+  }
+  async deleteGitHook(name: HookName): Promise<void> {
+    this.deleted.gitHooks.push(name);
+  }
 }
 
 class InMemoryLockfileStore implements LockfileStorePort {
@@ -163,12 +189,35 @@ class InMemoryLockfileStore implements LockfileStorePort {
 }
 
 class StubInspector implements ProjectInspectorPort {
-  constructor(private claudeMd = false) {}
+  constructor(
+    private claudeMd = false,
+    private hooks: Set<HookName> = new Set(),
+  ) {}
   setClaudeMd(value: boolean): void {
     this.claudeMd = value;
   }
+  setGitHook(name: HookName, exists: boolean): void {
+    if (exists) this.hooks.add(name);
+    else this.hooks.delete(name);
+  }
   async claudeMdExists(): Promise<boolean> {
     return this.claudeMd;
+  }
+  async gitHookExists(name: HookName): Promise<boolean> {
+    return this.hooks.has(name);
+  }
+}
+
+class FakeGitConfig implements GitConfigPort {
+  constructor(private value: string | null = null) {}
+  async getHooksPath(): Promise<string | null> {
+    return this.value;
+  }
+  async setHooksPath(path: string): Promise<void> {
+    this.value = path;
+  }
+  current(): string | null {
+    return this.value;
   }
 }
 
@@ -619,6 +668,163 @@ describe('install use case', () => {
 
     expect(result.composition.projectPath).toBe('/tmp/p');
     expect(result.composition.settings.permissions.allow).toEqual(['Bash(ls)']);
+  });
+
+  describe('git hooks', () => {
+    const presetWithHooks = (names: readonly HookName[]) =>
+      Preset.of({ name: PresetName.of('base'), gitHookNames: names });
+
+    it('first install with hooks: writes them and activates core.hooksPath via gitConfig', async () => {
+      const catalog = new InMemoryCatalog(
+        [presetWithHooks([HookName.of('commit-msg'), HookName.of('pre-commit')])],
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map([
+          ['commit-msg', '#!/bin/sh\nexit 0\n'],
+          ['pre-commit', '#!/bin/sh\nexit 0\n'],
+        ]),
+      );
+      const gitConfig = new FakeGitConfig(null);
+
+      const result = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog,
+        writer,
+        lockfileStore,
+        inspector,
+        gitConfig,
+      });
+
+      expect(writer.written.gitHooks.map((h) => h.hookName).sort()).toEqual([
+        'commit-msg',
+        'pre-commit',
+      ]);
+      expect(result.written.gitHooks.sort()).toEqual(['commit-msg', 'pre-commit']);
+      expect(result.written.gitConfigActivated).toBe(true);
+      expect(gitConfig.current()).toBe('.githooks');
+      expect(lockfileStore.current?.gitHooks.map((h) => h.hookName).sort()).toEqual([
+        'commit-msg',
+        'pre-commit',
+      ]);
+    });
+
+    it('idempotent re-install: does not re-activate core.hooksPath after the first set', async () => {
+      const catalog = new InMemoryCatalog(
+        [presetWithHooks([HookName.of('commit-msg')])],
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map([['commit-msg', 'same']]),
+      );
+      const gitConfig = new FakeGitConfig(null);
+
+      await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog,
+        writer,
+        lockfileStore,
+        inspector,
+        gitConfig,
+      });
+      // First run sets it.
+      expect(gitConfig.current()).toBe('.githooks');
+
+      writer = new RecordingWriter();
+      const second = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog,
+        writer,
+        lockfileStore,
+        inspector,
+        gitConfig,
+      });
+
+      // Hooks are rewritten for idempotence but the config is not re-activated.
+      expect(writer.written.gitHooks).toHaveLength(1);
+      expect(second.written.gitConfigActivated).toBe(false);
+      expect(gitConfig.current()).toBe('.githooks');
+    });
+
+    it('respects an existing core.hooksPath set to a different value', async () => {
+      const catalog = new InMemoryCatalog(
+        [presetWithHooks([HookName.of('commit-msg')])],
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map([['commit-msg', 'x']]),
+      );
+      const gitConfig = new FakeGitConfig('.my-hooks');
+
+      const result = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog,
+        writer,
+        lockfileStore,
+        inspector,
+        gitConfig,
+      });
+
+      expect(result.written.gitConfigActivated).toBe(false);
+      expect(gitConfig.current()).toBe('.my-hooks');
+    });
+
+    it('take-over: refuses to overwrite an unmanaged .githooks/<name>', async () => {
+      inspector.setGitHook(HookName.of('commit-msg'), true);
+      const catalog = new InMemoryCatalog(
+        [presetWithHooks([HookName.of('commit-msg')])],
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map([['commit-msg', 'x']]),
+      );
+
+      await expect(
+        install({
+          manifest: buildManifest(),
+          projectPath: '/tmp/p',
+          catalog,
+          writer,
+          lockfileStore,
+          inspector,
+        }),
+      ).rejects.toThrow(UnmanagedGitHookError);
+
+      expect(writer.written.gitHooks).toEqual([]);
+      expect(lockfileStore.current).toBeNull();
+    });
+
+    it('removes a hook when it disappears from the preset', async () => {
+      lockfileStore.current = Lockfile.of({
+        presetName: PresetName.of('base'),
+        artifacts: [],
+        settings: Settings.empty(),
+        instructions: Instructions.empty(),
+        gitHooks: [{ hookName: HookName.of('pre-push'), contentHash: ContentHash.of('p') }],
+      });
+      const catalog = new InMemoryCatalog([presetWithHooks([])]);
+
+      const result = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog,
+        writer,
+        lockfileStore,
+        inspector,
+      });
+
+      expect(writer.deleted.gitHooks).toEqual(['pre-push']);
+      expect(result.written.gitHooks).toEqual([]);
+      expect(lockfileStore.current?.gitHooks).toEqual([]);
+    });
   });
 
   describe('errors', () => {

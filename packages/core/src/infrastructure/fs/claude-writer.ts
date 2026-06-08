@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import type { WriterPort } from '../../application/ports/writer.port.js';
 import type { Agent } from '../../domain/model/agent.js';
 import type { Command } from '../../domain/model/command.js';
-import type { AgentId, CommandId, SkillId } from '../../domain/model/identifiers.js';
+import type { GitHook } from '../../domain/model/git-hook.js';
+import type { AgentId, CommandId, HookName, SkillId } from '../../domain/model/identifiers.js';
 import type { Instructions } from '../../domain/model/instructions.js';
 import type { Settings } from '../../domain/model/settings.js';
 import type { Skill } from '../../domain/model/skill.js';
@@ -126,5 +127,16 @@ export class ClaudeWriter implements WriterPort {
       if (isErrnoException(err) && err.code === 'ENOENT') return;
       throw err;
     }
+  }
+
+  // Git-hook write/delete are implemented in sub-phase 1.D (chmod 0o755,
+  // .githooks/ outside .claude/, cross-platform handling). Stubs satisfy
+  // the WriterPort contract for 1.C's use-case wiring.
+  async writeGitHook(_hook: GitHook): Promise<void> {
+    throw new Error('ClaudeWriter.writeGitHook not implemented (sub-phase 1.D)');
+  }
+
+  async deleteGitHook(_hookName: HookName): Promise<void> {
+    throw new Error('ClaudeWriter.deleteGitHook not implemented (sub-phase 1.D)');
   }
 }

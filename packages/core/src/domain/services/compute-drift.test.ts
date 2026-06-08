@@ -35,7 +35,10 @@ const makeComposition = (
 const lockfileFor = (
   presetName: string,
   artifacts: { type: 'agent' | 'skill' | 'command'; id: string; content: string }[],
-  options: { instructions?: Instructions } = {},
+  options: {
+    instructions?: Instructions;
+    gitHooks?: { hookName: string; content: string }[];
+  } = {},
 ) => {
   return Lockfile.of({
     presetName: PresetName.of(presetName),
@@ -49,6 +52,10 @@ const lockfileFor = (
     }),
     settings: Settings.empty(),
     instructions: options.instructions ?? Instructions.empty(),
+    gitHooks: (options.gitHooks ?? []).map((h) => ({
+      hookName: HookName.of(h.hookName),
+      contentHash: ContentHash.of(h.content),
+    })),
   });
 };
 
@@ -224,6 +231,48 @@ describe('computeDrift', () => {
         const addedHooks = drift.added.filter((r) => r.type === 'git-hook');
         expect(addedHooks).toHaveLength(1);
         expect(addedHooks[0]?.type === 'git-hook' ? addedHooks[0].hookName : '').toBe('pre-push');
+      });
+
+      it('git-hook present in lockfile and composition with same content → unchanged', () => {
+        const lockfile = lockfileFor('p', [], {
+          gitHooks: [{ hookName: 'commit-msg', content: 'same' }],
+        });
+        const composition = makeComposition({
+          gitHooks: [{ hookName: 'commit-msg', content: 'same' }],
+        });
+        const drift = computeDrift(lockfile, composition);
+        expect(drift.unchanged.filter((r) => r.type === 'git-hook')).toHaveLength(1);
+        expect(drift.added.filter((r) => r.type === 'git-hook')).toEqual([]);
+        expect(drift.updated).toEqual([]);
+      });
+
+      it('git-hook content changed → updated with oldSha/newSha', () => {
+        const lockfile = lockfileFor('p', [], {
+          gitHooks: [{ hookName: 'pre-commit', content: 'old' }],
+        });
+        const composition = makeComposition({
+          gitHooks: [{ hookName: 'pre-commit', content: 'new' }],
+        });
+        const drift = computeDrift(lockfile, composition);
+        expect(drift.updated).toHaveLength(1);
+        const update = drift.updated[0];
+        if (!update) throw new Error('expected one update');
+        expect(update.ref.type === 'git-hook' ? update.ref.hookName : '').toBe('pre-commit');
+        expect(update.oldSha.equals(ContentHash.of('old'))).toBe(true);
+        expect(update.newSha.equals(ContentHash.of('new'))).toBe(true);
+      });
+
+      it('git-hook in lockfile but not in composition → removed', () => {
+        const lockfile = lockfileFor('p', [], {
+          gitHooks: [{ hookName: 'pre-push', content: 'x' }],
+        });
+        const composition = makeComposition();
+        const drift = computeDrift(lockfile, composition);
+        const removedHooks = drift.removed.filter((r) => r.type === 'git-hook');
+        expect(removedHooks).toHaveLength(1);
+        expect(removedHooks[0]?.type === 'git-hook' ? removedHooks[0].hookName : '').toBe(
+          'pre-push',
+        );
       });
     });
 

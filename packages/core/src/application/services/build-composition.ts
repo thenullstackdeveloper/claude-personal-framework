@@ -41,11 +41,12 @@ export const buildComposition = async (input: BuildCompositionInput): Promise<Co
   const resolved = resolveExtends(presets, manifest.presetName);
   const { preset, patches } = applyOverrides(resolved, manifest.overrides);
 
-  const [rawAgents, rawSkills, rawCommands, rawInstructions] = await Promise.all([
+  const [rawAgents, rawSkills, rawCommands, rawInstructions, rawGitHooks] = await Promise.all([
     Promise.all(preset.agentIds.map((id) => catalog.readAgent(id))),
     Promise.all(preset.skillIds.map((id) => catalog.readSkill(id))),
     Promise.all(preset.commandIds.map((id) => catalog.readCommand(id))),
     Promise.all(preset.instructionsIds.map((id) => catalog.readInstructions(id))),
+    Promise.all(preset.gitHookNames.map((name) => catalog.readGitHook(name))),
   ]);
 
   const instructions = rawInstructions.reduce(
@@ -58,11 +59,9 @@ export const buildComposition = async (input: BuildCompositionInput): Promise<Co
     agents: rawAgents.map((a) => patchAgent(a, patches)),
     skills: rawSkills.map((s) => patchSkill(s, patches)),
     commands: rawCommands.map((c) => patchCommand(c, patches)),
-    // git-hooks: the catalog port learns to read them in a later sub-phase
-    // (CatalogReader.listGitHooks / readGitHook). For now the composition
-    // exposes an empty list — drift correctly reports composition hooks as
-    // added once the catalog reader populates them.
-    gitHooks: [],
+    // git-hooks are not patchable via overrides in MVP — preset declares
+    // a closed enum value, overrides do not target them.
+    gitHooks: rawGitHooks,
     settings: preset.settings,
     instructions,
   });

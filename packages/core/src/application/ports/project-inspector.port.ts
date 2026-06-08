@@ -1,3 +1,5 @@
+import type { HookName } from '../../domain/model/identifiers.js';
+
 /**
  * Read-side port for inspecting the project on disk. Kept separate from
  * `WriterPort` so that pure queries don't drag in a writer dependency —
@@ -11,4 +13,12 @@ export interface ProjectInspectorPort {
    * manage, so it can refuse to overwrite it.
    */
   claudeMdExists(): Promise<boolean>;
+
+  /**
+   * True if `.githooks/<hookName>` exists in the project. Same purpose
+   * as {@link claudeMdExists} but for git hooks: detect a user-authored
+   * hook the lockfile doesn't manage so install can refuse to overwrite
+   * it.
+   */
+  gitHookExists(hookName: HookName): Promise<boolean>;
 }

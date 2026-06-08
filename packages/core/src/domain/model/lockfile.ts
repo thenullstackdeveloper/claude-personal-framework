@@ -1,6 +1,6 @@
 import type { ArtifactRef } from './artifact-ref.js';
 import type { ContentHash } from './content-hash.js';
-import type { PresetName } from './identifiers.js';
+import type { HookName, PresetName } from './identifiers.js';
 import type { Instructions } from './instructions.js';
 import type { Settings } from './settings.js';
 
@@ -8,6 +8,11 @@ export const LOCKFILE_VERSION = 1;
 
 export type LockedArtifact = {
   readonly ref: ArtifactRef;
+  readonly contentHash: ContentHash;
+};
+
+export type LockedGitHook = {
+  readonly hookName: HookName;
   readonly contentHash: ContentHash;
 };
 
@@ -28,6 +33,14 @@ export type LockfileInit = {
    * `settingsHash`. If omitted, computed from the provided instructions.
    */
   readonly instructionsHash?: ContentHash;
+  /**
+   * Git hooks live in their own section, separate from `artifacts`,
+   * because their target directory is `.githooks/` (outside `.claude/`)
+   * and because keeping the JSON section explicit makes the lockfile
+   * readable. Optional for back-compat with lockfiles written before
+   * git-hooks landed.
+   */
+  readonly gitHooks?: readonly LockedGitHook[];
 };
 
 export class Lockfile {
@@ -38,6 +51,7 @@ export class Lockfile {
     public readonly settingsHash: ContentHash,
     public readonly instructions: Instructions,
     public readonly instructionsHash: ContentHash,
+    public readonly gitHooks: readonly LockedGitHook[],
   ) {}
 
   static of(init: LockfileInit): Lockfile {
@@ -50,17 +64,21 @@ export class Lockfile {
       settingsHash,
       init.instructions,
       instructionsHash,
+      init.gitHooks ?? [],
     );
   }
 
   findHash(ref: ArtifactRef): ContentHash | null {
-    // git-hook refs are not tracked in the artifacts section in this sub-phase;
-    // they will get their own section in a later sub-phase.
-    if (ref.type === 'git-hook') return null;
+    if (ref.type === 'git-hook') return this.findGitHookHash(ref.hookName);
     const found = this.artifacts.find((a) => {
       if (a.ref.type === 'git-hook') return false;
       return a.ref.type === ref.type && a.ref.id.toString() === ref.id.toString();
     });
+    return found ? found.contentHash : null;
+  }
+
+  findGitHookHash(hookName: HookName): ContentHash | null {
+    const found = this.gitHooks.find((h) => h.hookName === hookName);
     return found ? found.contentHash : null;
   }
 }

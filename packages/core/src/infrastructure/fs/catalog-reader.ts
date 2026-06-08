@@ -6,11 +6,19 @@ import { Agent } from '../../domain/model/agent.js';
 import type {
   AgentSummary,
   CommandSummary,
+  GitHookSummary,
   InstructionsSummary,
   SkillSummary,
 } from '../../domain/model/artifact-summary.js';
 import { Command } from '../../domain/model/command.js';
-import { AgentId, CommandId, InstructionsId, SkillId } from '../../domain/model/identifiers.js';
+import type { GitHook } from '../../domain/model/git-hook.js';
+import {
+  AgentId,
+  CommandId,
+  type HookName,
+  InstructionsId,
+  SkillId,
+} from '../../domain/model/identifiers.js';
 import { Instructions } from '../../domain/model/instructions.js';
 import type { Preset } from '../../domain/model/preset.js';
 import { Skill } from '../../domain/model/skill.js';
@@ -138,5 +146,17 @@ export class CatalogReader implements CatalogPort {
     const path = join(this.frameworkRoot, 'instructions', `${id.toString()}${ARTIFACT_EXT}`);
     const content = await readArtifactFile(path, `instructions "${id.toString()}"`);
     return Instructions.of(content);
+  }
+
+  // Git-hook adapter methods are implemented in sub-phase 1.D. Stubs keep
+  // the CatalogPort contract satisfied so the use-case wiring of 1.C can
+  // compile; calling them in tests that do not touch git-hooks is safe
+  // because the fake catalog (in install.test.ts) overrides them.
+  async listGitHooks(): Promise<readonly GitHookSummary[]> {
+    throw new Error('CatalogReader.listGitHooks not implemented (sub-phase 1.D)');
+  }
+
+  async readGitHook(_hookName: HookName): Promise<GitHook> {
+    throw new Error('CatalogReader.readGitHook not implemented (sub-phase 1.D)');
   }
 }

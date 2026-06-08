@@ -83,9 +83,13 @@ export const computeDrift = (lockfile: Lockfile | null, composition: Composition
   }
 
   const currentRefs = refsFromComposition(composition);
-  const removed = lockfile.artifacts
-    .map((a) => a.ref)
-    .filter((lockedRef) => !currentRefs.some((cr) => ArtifactRef.equals(cr, lockedRef)));
+  const lockedRefs: readonly ArtifactRef[] = [
+    ...lockfile.artifacts.map((a) => a.ref),
+    ...lockfile.gitHooks.map((h) => ArtifactRef.gitHook(h.hookName)),
+  ];
+  const removed = lockedRefs.filter(
+    (lockedRef) => !currentRefs.some((cr) => ArtifactRef.equals(cr, lockedRef)),
+  );
 
   // Settings drift: the lockfile carries the previous hash. We treat the
   // *empty* settings as "not installed" — so going from non-empty to empty

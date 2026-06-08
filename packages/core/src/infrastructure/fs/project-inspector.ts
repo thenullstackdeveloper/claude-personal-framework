@@ -1,6 +1,7 @@
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ProjectInspectorPort } from '../../application/ports/project-inspector.port.js';
+import type { HookName } from '../../domain/model/identifiers.js';
 
 const CLAUDE_DIR = '.claude';
 const INSTRUCTIONS_FILENAME = 'CLAUDE.md';
@@ -20,5 +21,10 @@ export class FsProjectInspector implements ProjectInspectorPort {
       if (isErrnoException(err) && err.code === 'ENOENT') return false;
       throw err;
     }
+  }
+
+  // Implemented in sub-phase 1.D.
+  async gitHookExists(_hookName: HookName): Promise<boolean> {
+    throw new Error('FsProjectInspector.gitHookExists not implemented (sub-phase 1.D)');
   }
 }
