@@ -236,11 +236,19 @@ export const serializeLockfile = (lockfile: Lockfile): string => {
   const out: Record<string, unknown> = {
     version: LOCKFILE_VERSION,
     presetName: lockfile.presetName.toString(),
-    artifacts: lockfile.artifacts.map((a) => ({
-      type: a.ref.type,
-      id: a.ref.id.toString(),
-      sha: a.contentHash.toString(),
-    })),
+    artifacts: lockfile.artifacts.map((a) => {
+      // The artifacts section never holds git-hook refs (those will live in
+      // their own lockfile section in a later sub-phase). Narrow explicitly
+      // so TS sees the union is exhausted.
+      if (a.ref.type === 'git-hook') {
+        throw new Error('lockfile.artifacts is not expected to contain git-hook refs');
+      }
+      return {
+        type: a.ref.type,
+        id: a.ref.id.toString(),
+        sha: a.contentHash.toString(),
+      };
+    }),
     settings: settingsObj,
     settingsHash: lockfile.settingsHash.toString(),
   };

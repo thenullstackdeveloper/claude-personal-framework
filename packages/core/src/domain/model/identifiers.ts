@@ -1,4 +1,4 @@
-import { InvalidSlugError } from '../errors/domain-error.js';
+import { InvalidHookNameError, InvalidSlugError } from '../errors/domain-error.js';
 
 const SLUG_PATTERN = /^[a-z][a-z0-9-]*$/;
 
@@ -71,3 +71,19 @@ export class InstructionsId extends Slug {
     return this.value === other.value;
   }
 }
+
+const HOOK_NAMES = ['commit-msg', 'pre-commit', 'pre-push'] as const;
+
+export type HookName = (typeof HOOK_NAMES)[number];
+
+export const HookName = {
+  of(raw: string): HookName {
+    if (!(HOOK_NAMES as readonly string[]).includes(raw)) {
+      throw new InvalidHookNameError(
+        `HookName must be one of: ${HOOK_NAMES.join(', ')}, got "${raw}"`,
+      );
+    }
+    return raw as HookName;
+  },
+  values: HOOK_NAMES,
+} as const;

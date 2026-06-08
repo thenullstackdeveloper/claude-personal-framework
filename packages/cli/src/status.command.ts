@@ -56,18 +56,26 @@ export const runStatus = async (args: StatusCommandArgs): Promise<StatusCommandR
   return {
     presetName: manifest.presetName.toString(),
     hasLockfile: result.hasLockfile,
-    added: result.drift.added.map((r) => ({ type: r.type, id: r.id.toString() })),
+    added: result.drift.added.map(refToWire),
     updated: result.drift.updated.map((u) => ({
-      type: u.ref.type,
-      id: u.ref.id.toString(),
+      ...refToWire(u.ref),
       oldSha: u.oldSha.toString(),
       newSha: u.newSha.toString(),
     })),
-    removed: result.drift.removed.map((r) => ({ type: r.type, id: r.id.toString() })),
-    unchanged: result.drift.unchanged.map((r) => ({ type: r.type, id: r.id.toString() })),
+    removed: result.drift.removed.map(refToWire),
+    unchanged: result.drift.unchanged.map(refToWire),
     settings: toStatusSingleton(result.drift.settings),
     instructions: toStatusSingleton(result.drift.instructions),
   };
+};
+
+const refToWire = (
+  ref:
+    | { readonly type: 'agent' | 'skill' | 'command'; readonly id: { toString(): string } }
+    | { readonly type: 'git-hook'; readonly hookName: string },
+): { type: string; id: string } => {
+  if (ref.type === 'git-hook') return { type: ref.type, id: ref.hookName };
+  return { type: ref.type, id: ref.id.toString() };
 };
 
 const toStatusSingleton = (s: {

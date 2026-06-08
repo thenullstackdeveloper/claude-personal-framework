@@ -38,3 +38,7 @@ export class ArtifactNotFoundError extends DomainError {
 export class InvalidLockfileError extends DomainError {
   readonly code = 'INVALID_LOCKFILE';
 }
+
+export class InvalidHookNameError extends DomainError {
+  readonly code = 'INVALID_HOOK_NAME';
+}

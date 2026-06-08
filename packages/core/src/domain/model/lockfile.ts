@@ -54,9 +54,13 @@ export class Lockfile {
   }
 
   findHash(ref: ArtifactRef): ContentHash | null {
-    const found = this.artifacts.find(
-      (a) => a.ref.type === ref.type && a.ref.id.toString() === ref.id.toString(),
-    );
+    // git-hook refs are not tracked in the artifacts section in this sub-phase;
+    // they will get their own section in a later sub-phase.
+    if (ref.type === 'git-hook') return null;
+    const found = this.artifacts.find((a) => {
+      if (a.ref.type === 'git-hook') return false;
+      return a.ref.type === ref.type && a.ref.id.toString() === ref.id.toString();
+    });
     return found ? found.contentHash : null;
   }
 }

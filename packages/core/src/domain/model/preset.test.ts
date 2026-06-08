@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AgentId, CommandId, PresetName, SkillId } from './identifiers.js';
+import { AgentId, CommandId, HookName, PresetName, SkillId } from './identifiers.js';
 import { Preset } from './preset.js';
 import { Settings } from './settings.js';
 
@@ -11,6 +11,7 @@ describe('Preset', () => {
     expect(preset.agentIds).toEqual([]);
     expect(preset.skillIds).toEqual([]);
     expect(preset.commandIds).toEqual([]);
+    expect(preset.gitHookNames).toEqual([]);
     expect(preset.settings.equals(Settings.empty())).toBe(true);
   });
 
@@ -21,6 +22,7 @@ describe('Preset', () => {
       agentIds: [AgentId.of('docs-manager'), AgentId.of('pr-creator')],
       skillIds: [SkillId.of('hexagonal-rn')],
       commandIds: [CommandId.of('build-android')],
+      gitHookNames: [HookName.of('commit-msg'), HookName.of('pre-commit')],
       settings: Settings.of({ allow: ['Bash(npx expo*)'] }),
     });
 
@@ -28,6 +30,7 @@ describe('Preset', () => {
     expect(preset.agentIds.map(String)).toEqual(['docs-manager', 'pr-creator']);
     expect(preset.skillIds.map(String)).toEqual(['hexagonal-rn']);
     expect(preset.commandIds.map(String)).toEqual(['build-android']);
+    expect(preset.gitHookNames).toEqual(['commit-msg', 'pre-commit']);
     expect(preset.settings.permissions.allow).toEqual(['Bash(npx expo*)']);
   });
 

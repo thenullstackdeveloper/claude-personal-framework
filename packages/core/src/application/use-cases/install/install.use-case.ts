@@ -58,7 +58,9 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
     drift.removed.map((ref) => {
       if (ref.type === 'agent') return writer.deleteAgent(ref.id);
       if (ref.type === 'skill') return writer.deleteSkill(ref.id);
-      return writer.deleteCommand(ref.id);
+      if (ref.type === 'command') return writer.deleteCommand(ref.id);
+      // git-hook removals will be handled by the writer in a later sub-phase.
+      return Promise.resolve();
     }),
   );
 

@@ -32,10 +32,11 @@ export function applyOverrides(
       } else if (target.type === 'skill') {
         const id = target.id;
         skillIds = skillIds.filter((x) => !x.equals(id));
-      } else {
+      } else if (target.type === 'command') {
         const id = target.id;
         commandIds = commandIds.filter((x) => !x.equals(id));
       }
+      // git-hook targets in overrides are not supported in MVP — no-op
       continue;
     }
 
@@ -45,9 +46,10 @@ export function applyOverrides(
         agentIds = dedupe([...agentIds, target.id]);
       } else if (target.type === 'skill') {
         skillIds = dedupe([...skillIds, target.id]);
-      } else {
+      } else if (target.type === 'command') {
         commandIds = dedupe([...commandIds, target.id]);
       }
+      // git-hook targets in overrides are not supported in MVP — no-op
       continue;
     }
 
@@ -64,6 +66,7 @@ export function applyOverrides(
       skillIds,
       commandIds,
       instructionsIds: preset.instructionsIds,
+      gitHookNames: preset.gitHookNames,
       settings: preset.settings,
     }),
     patches,

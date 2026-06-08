@@ -3,7 +3,12 @@ import type { ArtifactRef } from '../../domain/model/artifact-ref.js';
 import type { Override } from '../../domain/model/override.js';
 import type { ProjectManifest } from '../../domain/model/project-manifest.js';
 
-const refToString = (ref: ArtifactRef): string => `${ref.type}:${ref.id.toString()}`;
+const refToString = (ref: ArtifactRef): string => {
+  if (ref.type === 'git-hook') {
+    return `${ref.type}:${ref.hookName}`;
+  }
+  return `${ref.type}:${ref.id.toString()}`;
+};
 
 const serializeOverride = (o: Override): Record<string, unknown> => {
   if (o.kind === 'disable') return { disable: refToString(o.target) };

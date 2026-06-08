@@ -1,4 +1,11 @@
-import type { AgentId, CommandId, InstructionsId, PresetName, SkillId } from './identifiers.js';
+import type {
+  AgentId,
+  CommandId,
+  HookName,
+  InstructionsId,
+  PresetName,
+  SkillId,
+} from './identifiers.js';
 import { Settings } from './settings.js';
 
 export type PresetInit = {
@@ -8,6 +15,7 @@ export type PresetInit = {
   readonly skillIds?: readonly SkillId[];
   readonly commandIds?: readonly CommandId[];
   readonly instructionsIds?: readonly InstructionsId[];
+  readonly gitHookNames?: readonly HookName[];
   readonly settings?: Settings;
 };
 
@@ -19,6 +27,7 @@ export class Preset {
     public readonly skillIds: readonly SkillId[],
     public readonly commandIds: readonly CommandId[],
     public readonly instructionsIds: readonly InstructionsId[],
+    public readonly gitHookNames: readonly HookName[],
     public readonly settings: Settings,
   ) {}
 
@@ -30,6 +39,7 @@ export class Preset {
       init.skillIds ?? [],
       init.commandIds ?? [],
       init.instructionsIds ?? [],
+      init.gitHookNames ?? [],
       init.settings ?? Settings.empty(),
     );
   }

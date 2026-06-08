@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidSlugError } from '../errors/domain-error.js';
-import { AgentId, CommandId, InstructionsId, PresetName, SkillId } from './identifiers.js';
+import { InvalidHookNameError, InvalidSlugError } from '../errors/domain-error.js';
+import {
+  AgentId,
+  CommandId,
+  HookName,
+  InstructionsId,
+  PresetName,
+  SkillId,
+} from './identifiers.js';
 
 describe('Slug-based identifiers', () => {
   describe('valid slugs', () => {
@@ -57,6 +64,32 @@ describe('Slug-based identifiers', () => {
       expect(agent).not.toBeInstanceOf(SkillId);
       expect(skill).not.toBeInstanceOf(CommandId);
       expect(instructions).not.toBeInstanceOf(AgentId);
+    });
+  });
+});
+
+describe('HookName', () => {
+  describe('valid hook names', () => {
+    it.each([['commit-msg'], ['pre-commit'], ['pre-push']])('accepts %s', (value) => {
+      expect(HookName.of(value)).toBe(value);
+    });
+  });
+
+  describe('invalid hook names', () => {
+    it.each([
+      ['', 'empty string'],
+      ['pre-merge', 'not in the closed enum'],
+      ['commit-MSG', 'wrong case'],
+      ['commit_msg', 'underscore instead of hyphen'],
+      ['unknown', 'arbitrary string'],
+    ])('rejects "%s" (%s)', (value) => {
+      expect(() => HookName.of(value)).toThrow(InvalidHookNameError);
+    });
+  });
+
+  describe('values', () => {
+    it('exposes the closed enum as a readonly array', () => {
+      expect(HookName.values).toEqual(['commit-msg', 'pre-commit', 'pre-push']);
     });
   });
 });
