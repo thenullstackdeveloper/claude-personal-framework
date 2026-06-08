@@ -101,4 +101,34 @@ settings:
       expect(() => parsePreset(yaml, 'p')).toThrow(InvalidPresetError);
     });
   });
+
+  describe('git-hooks', () => {
+    it('parses a list of valid hook names', () => {
+      const preset = parsePreset('git-hooks: [commit-msg, pre-commit, pre-push]', 'p');
+      expect(preset.gitHookNames).toEqual(['commit-msg', 'pre-commit', 'pre-push']);
+    });
+
+    it('defaults to empty when the field is absent', () => {
+      const preset = parsePreset('agents: [docs-manager]', 'p');
+      expect(preset.gitHookNames).toEqual([]);
+    });
+
+    it('rejects an unsupported hook name with a message listing valid values', () => {
+      expect(() => parsePreset('git-hooks: [post-merge]', 'p')).toThrow(InvalidPresetError);
+      try {
+        parsePreset('git-hooks: [post-merge]', 'p');
+      } catch (err) {
+        expect((err as Error).message).toContain('commit-msg, pre-commit, pre-push');
+        expect((err as Error).message).toContain('post-merge');
+      }
+    });
+
+    it('rejects "git-hooks" given as a string instead of a list', () => {
+      expect(() => parsePreset('git-hooks: "commit-msg"', 'p')).toThrow(InvalidPresetError);
+    });
+
+    it('rejects "git-hooks" with a non-string entry', () => {
+      expect(() => parsePreset('git-hooks: [42]', 'p')).toThrow(InvalidPresetError);
+    });
+  });
 });

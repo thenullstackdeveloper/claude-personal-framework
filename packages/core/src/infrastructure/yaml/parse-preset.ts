@@ -1,5 +1,5 @@
 import { parse as parseYaml } from 'yaml';
-import { InvalidPresetError } from '../../domain/errors/domain-error.js';
+import { InvalidHookNameError, InvalidPresetError } from '../../domain/errors/domain-error.js';
 import {
   type CommandHook,
   type HookEvent,
@@ -9,6 +9,7 @@ import {
 import {
   AgentId,
   CommandId,
+  HookName,
   InstructionsId,
   PresetName,
   SkillId,
@@ -177,6 +178,8 @@ export const parsePreset = (yamlText: string, name: string): Preset => {
     instructionsIds = [InstructionsId.of(instructionsRaw)];
   }
 
+  const gitHookNames = parseGitHookNames(raw['git-hooks'], name);
+
   return Preset.of({
     name: presetName,
     extends_,
@@ -184,6 +187,26 @@ export const parsePreset = (yamlText: string, name: string): Preset => {
     skillIds: parseIdArray(raw['skills'], SkillId.of, name, 'skills'),
     commandIds: parseIdArray(raw['commands'], CommandId.of, name, 'commands'),
     instructionsIds,
+    gitHookNames,
     settings: parseSettings(raw['settings'], name),
+  });
+};
+
+const parseGitHookNames = (raw: unknown, presetName: string): readonly HookName[] => {
+  if (raw === undefined) return [];
+  if (!isStringArray(raw)) {
+    throw new InvalidPresetError(`preset "${presetName}": "git-hooks" must be a list of strings`);
+  }
+  return raw.map((value) => {
+    try {
+      return HookName.of(value);
+    } catch (err) {
+      if (err instanceof InvalidHookNameError) {
+        throw new InvalidPresetError(
+          `preset "${presetName}": "git-hooks" entry "${value}" is not a supported hook name (expected one of: ${HookName.values.join(', ')})`,
+        );
+      }
+      throw err;
+    }
   });
 };
