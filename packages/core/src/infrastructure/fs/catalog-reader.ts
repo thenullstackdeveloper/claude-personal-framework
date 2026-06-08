@@ -1,7 +1,11 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CatalogPort } from '../../application/ports/catalog.port.js';
-import { ArtifactNotFoundError, InvalidSlugError } from '../../domain/errors/domain-error.js';
+import {
+  ArtifactNotFoundError,
+  InvalidHookNameError,
+  InvalidSlugError,
+} from '../../domain/errors/domain-error.js';
 import { Agent } from '../../domain/model/agent.js';
 import type {
   AgentSummary,
@@ -11,11 +15,11 @@ import type {
   SkillSummary,
 } from '../../domain/model/artifact-summary.js';
 import { Command } from '../../domain/model/command.js';
-import type { GitHook } from '../../domain/model/git-hook.js';
+import { GitHook } from '../../domain/model/git-hook.js';
 import {
   AgentId,
   CommandId,
-  type HookName,
+  HookName,
   InstructionsId,
   SkillId,
 } from '../../domain/model/identifiers.js';
@@ -27,6 +31,7 @@ import { parsePreset } from '../yaml/parse-preset.js';
 
 const PRESET_EXT = '.yaml';
 const ARTIFACT_EXT = '.md';
+const GITHOOKS_SUBDIR = 'git-hooks';
 
 const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
   return err instanceof Error && 'code' in err;
@@ -148,15 +153,32 @@ export class CatalogReader implements CatalogPort {
     return Instructions.of(content);
   }
 
-  // Git-hook adapter methods are implemented in sub-phase 1.D. Stubs keep
-  // the CatalogPort contract satisfied so the use-case wiring of 1.C can
-  // compile; calling them in tests that do not touch git-hooks is safe
-  // because the fake catalog (in install.test.ts) overrides them.
   async listGitHooks(): Promise<readonly GitHookSummary[]> {
-    throw new Error('CatalogReader.listGitHooks not implemented (sub-phase 1.D)');
+    const dir = join(this.frameworkRoot, GITHOOKS_SUBDIR);
+    let entries: readonly string[];
+    try {
+      entries = await readdir(dir);
+    } catch (err) {
+      if (isErrnoException(err) && err.code === 'ENOENT') return [];
+      throw err;
+    }
+    const summaries: GitHookSummary[] = [];
+    for (const name of entries) {
+      // Hook files have no extension. Names outside the closed enum are
+      // silently skipped — same pattern as parseIdOrSkip for Slug-based ids.
+      try {
+        summaries.push({ hookName: HookName.of(name) });
+      } catch (err) {
+        if (err instanceof InvalidHookNameError) continue;
+        throw err;
+      }
+    }
+    return summaries;
   }
 
-  async readGitHook(_hookName: HookName): Promise<GitHook> {
-    throw new Error('CatalogReader.readGitHook not implemented (sub-phase 1.D)');
+  async readGitHook(hookName: HookName): Promise<GitHook> {
+    const path = join(this.frameworkRoot, GITHOOKS_SUBDIR, hookName);
+    const content = await readArtifactFile(path, `git-hook "${hookName}"`);
+    return GitHook.of(hookName, content);
   }
 }

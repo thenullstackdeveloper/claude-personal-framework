@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { InvalidContentHashError, InvalidLockfileError } from '../../domain/errors/domain-error.js';
 import { ArtifactRef } from '../../domain/model/artifact-ref.js';
 import { ContentHash } from '../../domain/model/content-hash.js';
-import { AgentId, PresetName, SkillId } from '../../domain/model/identifiers.js';
+import { AgentId, HookName, PresetName, SkillId } from '../../domain/model/identifiers.js';
 import { Instructions } from '../../domain/model/instructions.js';
 import { Lockfile } from '../../domain/model/lockfile.js';
 import { Settings } from '../../domain/model/settings.js';
@@ -168,6 +168,60 @@ describe('serializeLockfile', () => {
     const lockfile = parseLockfile(json);
     expect(lockfile.instructions.isEmpty()).toBe(true);
     expect(lockfile.instructionsHash.toString()).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  describe('gitHooks section', () => {
+    it('round-trips a lockfile with gitHooks', () => {
+      const original = Lockfile.of({
+        presetName: PresetName.of('base'),
+        artifacts: [],
+        settings: Settings.empty(),
+        instructions: Instructions.empty(),
+        gitHooks: [
+          { hookName: HookName.of('commit-msg'), contentHash: ContentHash.of('hook-a') },
+          { hookName: HookName.of('pre-commit'), contentHash: ContentHash.of('hook-b') },
+        ],
+      });
+      const json = serializeLockfile(original);
+      const restored = parseLockfile(json);
+      expect(restored.gitHooks.map((h) => h.hookName).sort()).toEqual(['commit-msg', 'pre-commit']);
+      expect(restored.findGitHookHash(HookName.of('commit-msg'))?.toString()).toBe(
+        ContentHash.of('hook-a').toString(),
+      );
+    });
+
+    it('always emits an empty gitHooks array when none are present', () => {
+      const lockfile = Lockfile.of({
+        presetName: PresetName.of('p'),
+        artifacts: [],
+        settings: Settings.empty(),
+        instructions: Instructions.empty(),
+      });
+      const parsed = JSON.parse(serializeLockfile(lockfile));
+      expect(parsed.gitHooks).toEqual([]);
+    });
+
+    it('back-compat: parses a lockfile written before gitHooks landed', () => {
+      const json = JSON.stringify({
+        version: 1,
+        presetName: 'p',
+        artifacts: [],
+        settings: { permissions: { allow: [], deny: [] } },
+      });
+      const lockfile = parseLockfile(json);
+      expect(lockfile.gitHooks).toEqual([]);
+    });
+
+    it('rejects gitHooks with an unknown hookName', () => {
+      const json = JSON.stringify({
+        version: 1,
+        presetName: 'p',
+        artifacts: [],
+        settings: { permissions: { allow: [], deny: [] } },
+        gitHooks: [{ hookName: 'post-merge', sha: ContentHash.of('x').toString() }],
+      });
+      expect(() => parseLockfile(json)).toThrow(InvalidLockfileError);
+    });
   });
 
   it('ends with a trailing newline (POSIX-friendly)', () => {

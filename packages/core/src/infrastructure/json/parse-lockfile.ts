@@ -1,4 +1,4 @@
-import { InvalidLockfileError } from '../../domain/errors/domain-error.js';
+import { InvalidHookNameError, InvalidLockfileError } from '../../domain/errors/domain-error.js';
 import { ArtifactRef } from '../../domain/model/artifact-ref.js';
 import { ContentHash } from '../../domain/model/content-hash.js';
 import {
@@ -7,9 +7,20 @@ import {
   type HookRule,
   Hooks,
 } from '../../domain/model/hooks.js';
-import { AgentId, CommandId, PresetName, SkillId } from '../../domain/model/identifiers.js';
+import {
+  AgentId,
+  CommandId,
+  HookName,
+  PresetName,
+  SkillId,
+} from '../../domain/model/identifiers.js';
 import { Instructions } from '../../domain/model/instructions.js';
-import { LOCKFILE_VERSION, type LockedArtifact, Lockfile } from '../../domain/model/lockfile.js';
+import {
+  LOCKFILE_VERSION,
+  type LockedArtifact,
+  type LockedGitHook,
+  Lockfile,
+} from '../../domain/model/lockfile.js';
 import { Settings } from '../../domain/model/settings.js';
 
 const KNOWN_HOOK_EVENTS: ReadonlySet<HookEvent> = new Set<HookEvent>([
@@ -210,6 +221,14 @@ export const parseLockfile = (jsonText: string): Lockfile => {
     instructionsHash = ContentHash.fromHex(instructionsHashRaw);
   }
 
+  // gitHooks is optional for back-compat with lockfiles written before
+  // git-hooks landed. Missing → empty list.
+  const gitHooksRaw = raw['gitHooks'];
+  if (gitHooksRaw !== undefined && !Array.isArray(gitHooksRaw)) {
+    throw new InvalidLockfileError('"gitHooks" must be a list');
+  }
+  const gitHooks = (gitHooksRaw ?? []).map((item: unknown, i: number) => parseGitHook(item, i));
+
   return Lockfile.of({
     presetName,
     artifacts,
@@ -217,7 +236,33 @@ export const parseLockfile = (jsonText: string): Lockfile => {
     ...(settingsHash && { settingsHash }),
     instructions,
     ...(instructionsHash && { instructionsHash }),
+    gitHooks,
   });
+};
+
+const parseGitHook = (raw: unknown, index: number): LockedGitHook => {
+  if (!isObject(raw)) {
+    throw new InvalidLockfileError(`gitHook #${index} must be an object`);
+  }
+  const hookNameRaw = raw['hookName'];
+  const sha = raw['sha'];
+  if (typeof hookNameRaw !== 'string' || typeof sha !== 'string') {
+    throw new InvalidLockfileError(
+      `gitHook #${index} must have string "hookName" and "sha" fields`,
+    );
+  }
+  let hookName: HookName;
+  try {
+    hookName = HookName.of(hookNameRaw);
+  } catch (err) {
+    if (err instanceof InvalidHookNameError) {
+      throw new InvalidLockfileError(
+        `gitHook #${index} has unknown hookName "${hookNameRaw}" (expected commit-msg | pre-commit | pre-push)`,
+      );
+    }
+    throw err;
+  }
+  return { hookName, contentHash: ContentHash.fromHex(sha) };
 };
 
 export const serializeLockfile = (lockfile: Lockfile): string => {
@@ -237,9 +282,7 @@ export const serializeLockfile = (lockfile: Lockfile): string => {
     version: LOCKFILE_VERSION,
     presetName: lockfile.presetName.toString(),
     artifacts: lockfile.artifacts.map((a) => {
-      // The artifacts section never holds git-hook refs (those will live in
-      // their own lockfile section in a later sub-phase). Narrow explicitly
-      // so TS sees the union is exhausted.
+      // git-hook refs live in the gitHooks section, not here.
       if (a.ref.type === 'git-hook') {
         throw new Error('lockfile.artifacts is not expected to contain git-hook refs');
       }
@@ -257,6 +300,12 @@ export const serializeLockfile = (lockfile: Lockfile): string => {
     out['instructions'] = { content: lockfile.instructions.content };
   }
   out['instructionsHash'] = lockfile.instructionsHash.toString();
+  // Always emit gitHooks (empty array included) — congruent with the
+  // existing `artifacts: []` policy and gives readers a stable shape.
+  out['gitHooks'] = lockfile.gitHooks.map((h) => ({
+    hookName: h.hookName,
+    sha: h.contentHash.toString(),
+  }));
 
   return `${JSON.stringify(out, null, 2)}\n`;
 };

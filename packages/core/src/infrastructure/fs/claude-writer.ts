@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { WriterPort } from '../../application/ports/writer.port.js';
 import type { Agent } from '../../domain/model/agent.js';
@@ -16,6 +16,8 @@ const COMMANDS_SUBDIR = 'commands';
 const ARTIFACT_EXT = '.md';
 const SETTINGS_FILENAME = 'settings.json';
 const INSTRUCTIONS_FILENAME = 'CLAUDE.md';
+const GITHOOKS_DIR = '.githooks';
+const HOOK_EXEC_MODE = 0o755;
 
 const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
   return err instanceof Error && 'code' in err;
@@ -129,14 +131,26 @@ export class ClaudeWriter implements WriterPort {
     }
   }
 
-  // Git-hook write/delete are implemented in sub-phase 1.D (chmod 0o755,
-  // .githooks/ outside .claude/, cross-platform handling). Stubs satisfy
-  // the WriterPort contract for 1.C's use-case wiring.
-  async writeGitHook(_hook: GitHook): Promise<void> {
-    throw new Error('ClaudeWriter.writeGitHook not implemented (sub-phase 1.D)');
+  private gitHookPath(hookName: HookName): string {
+    return join(this.projectRoot, GITHOOKS_DIR, hookName);
   }
 
-  async deleteGitHook(_hookName: HookName): Promise<void> {
-    throw new Error('ClaudeWriter.deleteGitHook not implemented (sub-phase 1.D)');
+  async writeGitHook(hook: GitHook): Promise<void> {
+    const dir = join(this.projectRoot, GITHOOKS_DIR);
+    await mkdir(dir, { recursive: true });
+    const path = this.gitHookPath(hook.hookName);
+    await writeFile(path, hook.content, 'utf-8');
+    // chmod no-op on Windows (NTFS has no POSIX exec bit; git for Windows
+    // runs hooks through sh.exe via the shebang regardless). Intentional.
+    await chmod(path, HOOK_EXEC_MODE);
+  }
+
+  async deleteGitHook(hookName: HookName): Promise<void> {
+    try {
+      await rm(this.gitHookPath(hookName));
+    } catch (err) {
+      if (isErrnoException(err) && err.code === 'ENOENT') return;
+      throw err;
+    }
   }
 }

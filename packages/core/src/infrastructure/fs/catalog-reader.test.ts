@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ArtifactNotFoundError } from '../../domain/errors/domain-error.js';
-import { AgentId, CommandId, InstructionsId, SkillId } from '../../domain/model/identifiers.js';
+import {
+  AgentId,
+  CommandId,
+  HookName,
+  InstructionsId,
+  SkillId,
+} from '../../domain/model/identifiers.js';
 import { CatalogReader } from './catalog-reader.js';
 
 describe('CatalogReader', () => {
@@ -194,6 +200,52 @@ describe('CatalogReader', () => {
       const [summary] = await reader.listCommands();
       expect(summary?.id.toString()).toBe('build-android');
       expect(summary?.description).toBe('Build Android.');
+    });
+  });
+
+  describe('listGitHooks', () => {
+    it('returns empty when git-hooks/ does not exist', async () => {
+      const reader = new CatalogReader(root);
+      expect(await reader.listGitHooks()).toEqual([]);
+    });
+
+    it('lists files whose name matches the closed HookName enum', async () => {
+      await writeFileAt('git-hooks/commit-msg', '#!/bin/sh');
+      await writeFileAt('git-hooks/pre-commit', '#!/bin/sh');
+      await writeFileAt('git-hooks/pre-push', '#!/bin/sh');
+      const reader = new CatalogReader(root);
+      const summaries = await reader.listGitHooks();
+      expect(summaries.map((s) => s.hookName).sort()).toEqual([
+        'commit-msg',
+        'pre-commit',
+        'pre-push',
+      ]);
+    });
+
+    it('silently skips files outside the closed enum', async () => {
+      await writeFileAt('git-hooks/commit-msg', '#!/bin/sh');
+      await writeFileAt('git-hooks/pre-rebase', '#!/bin/sh'); // not in MVP enum
+      await writeFileAt('git-hooks/README.md', 'docs');
+      const reader = new CatalogReader(root);
+      const summaries = await reader.listGitHooks();
+      expect(summaries.map((s) => s.hookName)).toEqual(['commit-msg']);
+    });
+  });
+
+  describe('readGitHook', () => {
+    it('returns a GitHook with file content verbatim', async () => {
+      await writeFileAt('git-hooks/commit-msg', '#!/bin/sh\nexit 0\n');
+      const reader = new CatalogReader(root);
+      const hook = await reader.readGitHook(HookName.of('commit-msg'));
+      expect(hook.hookName).toBe('commit-msg');
+      expect(hook.content).toBe('#!/bin/sh\nexit 0\n');
+    });
+
+    it('throws ArtifactNotFoundError when the hook file is missing', async () => {
+      const reader = new CatalogReader(root);
+      await expect(reader.readGitHook(HookName.of('pre-push'))).rejects.toThrow(
+        ArtifactNotFoundError,
+      );
     });
   });
 });

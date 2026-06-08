@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Agent } from '../../domain/model/agent.js';
 import { Command } from '../../domain/model/command.js';
-import { AgentId, CommandId, SkillId } from '../../domain/model/identifiers.js';
+import { GitHook } from '../../domain/model/git-hook.js';
+import { AgentId, CommandId, HookName, SkillId } from '../../domain/model/identifiers.js';
 import { Instructions } from '../../domain/model/instructions.js';
 import { Skill } from '../../domain/model/skill.js';
 import { ClaudeWriter } from './claude-writer.js';
@@ -125,6 +126,48 @@ describe('ClaudeWriter', () => {
     it('deleteInstructions is idempotent (ENOENT swallowed)', async () => {
       const writer = new ClaudeWriter(projectRoot);
       await expect(writer.deleteInstructions()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('writeGitHook / deleteGitHook', () => {
+    const hookPath = (name: string) => join(projectRoot, '.githooks', name);
+
+    it('creates .githooks/ outside .claude/ and writes the hook content', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeGitHook(GitHook.of(HookName.of('commit-msg'), '#!/bin/sh\nexit 0\n'));
+      const content = await readFile(hookPath('commit-msg'), 'utf-8');
+      expect(content).toBe('#!/bin/sh\nexit 0\n');
+    });
+
+    it('sets the executable bit (0o755) on POSIX', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeGitHook(GitHook.of(HookName.of('pre-commit'), '#!/bin/sh'));
+      const st = await stat(hookPath('pre-commit'));
+      // Skip the mode assertion on Windows — NTFS has no POSIX exec bit
+      // and chmod is a no-op there. Intentional, see writeGitHook.
+      if (process.platform !== 'win32') {
+        expect(st.mode & 0o777).toBe(0o755);
+      }
+    });
+
+    it('overwrites an existing hook file', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeGitHook(GitHook.of(HookName.of('pre-push'), 'v1'));
+      await writer.writeGitHook(GitHook.of(HookName.of('pre-push'), 'v2'));
+      const content = await readFile(hookPath('pre-push'), 'utf-8');
+      expect(content).toBe('v2');
+    });
+
+    it('deleteGitHook removes the file', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeGitHook(GitHook.of(HookName.of('commit-msg'), 'x'));
+      await writer.deleteGitHook(HookName.of('commit-msg'));
+      await expect(stat(hookPath('commit-msg'))).rejects.toThrow();
+    });
+
+    it('deleteGitHook is idempotent (ENOENT swallowed)', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await expect(writer.deleteGitHook(HookName.of('pre-push'))).resolves.toBeUndefined();
     });
   });
 });
