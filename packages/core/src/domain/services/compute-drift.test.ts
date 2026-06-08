@@ -4,7 +4,8 @@ import { ArtifactRef } from '../model/artifact-ref.js';
 import { Command } from '../model/command.js';
 import { Composition } from '../model/composition.js';
 import { ContentHash } from '../model/content-hash.js';
-import { AgentId, CommandId, PresetName, SkillId } from '../model/identifiers.js';
+import { GitHook } from '../model/git-hook.js';
+import { AgentId, CommandId, HookName, PresetName, SkillId } from '../model/identifiers.js';
 import { Instructions } from '../model/instructions.js';
 import { Lockfile } from '../model/lockfile.js';
 import { Settings } from '../model/settings.js';
@@ -16,6 +17,7 @@ const makeComposition = (
     agents?: { id: string; content: string }[];
     skills?: { id: string; content: string }[];
     commands?: { id: string; content: string }[];
+    gitHooks?: { hookName: string; content: string }[];
     instructions?: Instructions;
   } = {},
 ) => {
@@ -24,6 +26,7 @@ const makeComposition = (
     agents: (overrides.agents ?? []).map((a) => Agent.of(AgentId.of(a.id), a.content)),
     skills: (overrides.skills ?? []).map((s) => Skill.of(SkillId.of(s.id), s.content)),
     commands: (overrides.commands ?? []).map((c) => Command.of(CommandId.of(c.id), c.content)),
+    gitHooks: (overrides.gitHooks ?? []).map((h) => GitHook.of(HookName.of(h.hookName), h.content)),
     settings: Settings.empty(),
     instructions: overrides.instructions ?? Instructions.empty(),
   });
@@ -183,6 +186,44 @@ describe('computeDrift', () => {
         const composition = makeComposition();
         const drift = computeDrift(null, composition);
         expect(drift.instructions).toEqual({ kind: 'unchanged' });
+      });
+    });
+
+    describe('git-hooks drift (back-compat with pre-gitHooks lockfiles)', () => {
+      it('reports every git-hook in composition as added when lockfile has no git-hooks section', () => {
+        const lockfile = lockfileFor('p', []);
+        const composition = makeComposition({
+          gitHooks: [
+            { hookName: 'commit-msg', content: 'a' },
+            { hookName: 'pre-commit', content: 'b' },
+          ],
+        });
+        const drift = computeDrift(lockfile, composition);
+        const addedHooks = drift.added.filter((r) => r.type === 'git-hook');
+        expect(addedHooks).toHaveLength(2);
+        expect(addedHooks.map((r) => (r.type === 'git-hook' ? r.hookName : '')).sort()).toEqual([
+          'commit-msg',
+          'pre-commit',
+        ]);
+      });
+
+      it('does not synthesize removed git-hooks just because the lockfile has none', () => {
+        const lockfile = lockfileFor('p', []);
+        const composition = makeComposition({
+          gitHooks: [{ hookName: 'commit-msg', content: 'a' }],
+        });
+        const drift = computeDrift(lockfile, composition);
+        expect(drift.removed).toEqual([]);
+      });
+
+      it('first-install path: no lockfile + git-hooks in composition → all added', () => {
+        const composition = makeComposition({
+          gitHooks: [{ hookName: 'pre-push', content: 'x' }],
+        });
+        const drift = computeDrift(null, composition);
+        const addedHooks = drift.added.filter((r) => r.type === 'git-hook');
+        expect(addedHooks).toHaveLength(1);
+        expect(addedHooks[0]?.type === 'git-hook' ? addedHooks[0].hookName : '').toBe('pre-push');
       });
     });
 

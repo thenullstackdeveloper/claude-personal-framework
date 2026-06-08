@@ -58,6 +58,11 @@ export const buildComposition = async (input: BuildCompositionInput): Promise<Co
     agents: rawAgents.map((a) => patchAgent(a, patches)),
     skills: rawSkills.map((s) => patchSkill(s, patches)),
     commands: rawCommands.map((c) => patchCommand(c, patches)),
+    // git-hooks: the catalog port learns to read them in a later sub-phase
+    // (CatalogReader.listGitHooks / readGitHook). For now the composition
+    // exposes an empty list — drift correctly reports composition hooks as
+    // added once the catalog reader populates them.
+    gitHooks: [],
     settings: preset.settings,
     instructions,
   });

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { Agent } from './agent.js';
 import { Command } from './command.js';
 import { Composition } from './composition.js';
-import { AgentId, CommandId, SkillId } from './identifiers.js';
+import { GitHook } from './git-hook.js';
+import { AgentId, CommandId, HookName, SkillId } from './identifiers.js';
 import { Instructions } from './instructions.js';
 import { Settings } from './settings.js';
 import { Skill } from './skill.js';
@@ -14,6 +15,7 @@ describe('Composition', () => {
       agents: [Agent.of(AgentId.of('docs-manager'), 'agent body')],
       skills: [Skill.of(SkillId.of('hexagonal-rn'), 'skill body')],
       commands: [Command.of(CommandId.of('build-android'), 'cmd body')],
+      gitHooks: [GitHook.of(HookName.of('commit-msg'), '#!/bin/sh\nexit 0\n')],
       settings: Settings.of({ allow: ['Bash(ls)'] }),
       instructions: Instructions.empty(),
     });
@@ -22,6 +24,8 @@ describe('Composition', () => {
     expect(composition.agents).toHaveLength(1);
     expect(composition.skills).toHaveLength(1);
     expect(composition.commands).toHaveLength(1);
+    expect(composition.gitHooks).toHaveLength(1);
+    expect(composition.gitHooks[0]?.hookName).toBe('commit-msg');
     expect(composition.settings.permissions.allow).toEqual(['Bash(ls)']);
   });
 });

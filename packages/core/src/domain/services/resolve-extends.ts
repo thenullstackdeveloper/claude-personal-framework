@@ -2,6 +2,7 @@ import { CyclicExtendsError, PresetNotFoundError } from '../errors/domain-error.
 import type {
   AgentId,
   CommandId,
+  HookName,
   InstructionsId,
   PresetName,
   SkillId,
@@ -15,6 +16,7 @@ type Accumulator = {
   skillIds: readonly SkillId[];
   commandIds: readonly CommandId[];
   instructionsIds: readonly InstructionsId[];
+  gitHookNames: readonly HookName[];
   settings: Settings;
 };
 
@@ -23,6 +25,7 @@ const empty: Accumulator = {
   skillIds: [],
   commandIds: [],
   instructionsIds: [],
+  gitHookNames: [],
   settings: Settings.empty(),
 };
 
@@ -53,6 +56,7 @@ export function resolveExtends(catalog: readonly Preset[], targetName: PresetNam
         skillIds: [...acc.skillIds, ...parent.skillIds],
         commandIds: [...acc.commandIds, ...parent.commandIds],
         instructionsIds: [...acc.instructionsIds, ...parent.instructionsIds],
+        gitHookNames: [...acc.gitHookNames, ...parent.gitHookNames],
         settings: acc.settings.merge(parent.settings),
       };
     }
@@ -62,6 +66,7 @@ export function resolveExtends(catalog: readonly Preset[], targetName: PresetNam
       skillIds: [...acc.skillIds, ...preset.skillIds],
       commandIds: [...acc.commandIds, ...preset.commandIds],
       instructionsIds: [...acc.instructionsIds, ...preset.instructionsIds],
+      gitHookNames: [...acc.gitHookNames, ...preset.gitHookNames],
       settings: acc.settings.merge(preset.settings),
     };
 
@@ -78,6 +83,22 @@ export function resolveExtends(catalog: readonly Preset[], targetName: PresetNam
     skillIds: dedupe(resolved.skillIds),
     commandIds: dedupe(resolved.commandIds),
     instructionsIds: dedupe(resolved.instructionsIds),
+    gitHookNames: dedupeHookNames(resolved.gitHookNames),
     settings: resolved.settings,
   });
 }
+
+// HookName is a string-union (not a Stringable class), so we need a
+// plain string-based dedupe. Order is preserved (first-wins) just
+// like the dedupe used for the other collections.
+const dedupeHookNames = (items: readonly HookName[]): readonly HookName[] => {
+  const seen = new Set<HookName>();
+  const out: HookName[] = [];
+  for (const item of items) {
+    if (!seen.has(item)) {
+      seen.add(item);
+      out.push(item);
+    }
+  }
+  return out;
+};

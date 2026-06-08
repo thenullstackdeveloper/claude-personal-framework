@@ -1,5 +1,6 @@
 import type { Agent } from './agent.js';
 import type { Command } from './command.js';
+import type { GitHook } from './git-hook.js';
 import type { Instructions } from './instructions.js';
 import type { Settings } from './settings.js';
 import type { Skill } from './skill.js';
@@ -9,6 +10,7 @@ export type CompositionInit = {
   readonly agents: readonly Agent[];
   readonly skills: readonly Skill[];
   readonly commands: readonly Command[];
+  readonly gitHooks: readonly GitHook[];
   readonly settings: Settings;
   readonly instructions: Instructions;
 };
@@ -19,6 +21,7 @@ export class Composition {
     public readonly agents: readonly Agent[],
     public readonly skills: readonly Skill[],
     public readonly commands: readonly Command[],
+    public readonly gitHooks: readonly GitHook[],
     public readonly settings: Settings,
     public readonly instructions: Instructions,
   ) {}
@@ -29,6 +32,7 @@ export class Composition {
       init.agents,
       init.skills,
       init.commands,
+      init.gitHooks,
       init.settings,
       init.instructions,
     );

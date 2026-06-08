@@ -25,6 +25,9 @@ const refsWithHashesOf = (composition: Composition): readonly RefWithHash[] => {
   for (const command of composition.commands) {
     out.push({ ref: ArtifactRef.command(command.id), hash: command.contentHash });
   }
+  for (const hook of composition.gitHooks) {
+    out.push({ ref: ArtifactRef.gitHook(hook.hookName), hash: hook.contentHash });
+  }
   return out;
 };
 
