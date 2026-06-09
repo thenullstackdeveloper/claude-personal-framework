@@ -1,4 +1,4 @@
-import { BookOpen, Boxes, FileTerminal, ScrollText, Sparkles } from 'lucide-react';
+import { BookOpen, Boxes, FileTerminal, ScrollText, Sparkles, Webhook } from 'lucide-react';
 import type { CatalogReport } from '../lib/api';
 
 type CatalogViewProps = {
@@ -24,6 +24,7 @@ export function CatalogView({ report }: CatalogViewProps) {
                   p.skills.length,
                   p.commands.length,
                   p.instructions.length,
+                  p.gitHooks.length,
                 )}
               </div>
             </div>
@@ -69,6 +70,18 @@ export function CatalogView({ report }: CatalogViewProps) {
         ) : (
           report.instructions.map((i) => (
             <Artifact key={i.id} id={i.id} description={i.description} />
+          ))
+        )}
+      </Card>
+
+      <Card icon={<Webhook className="w-4 h-4" />} title="Git hooks" count={report.gitHooks.length}>
+        {report.gitHooks.length === 0 ? (
+          <EmptyHint label="No git-hooks in the catalog" />
+        ) : (
+          report.gitHooks.map((h) => (
+            <div key={h.hookName} className="text-sm font-semibold text-zinc-100">
+              {h.hookName}
+            </div>
           ))
         )}
       </Card>
@@ -119,6 +132,7 @@ function summarizePresetCounts(
   skills: number,
   commands: number,
   instructions: number,
+  gitHooks: number,
 ): string {
   const parts: string[] = [];
   if (agents > 0) parts.push(`${agents} agent${agents === 1 ? '' : 's'}`);
@@ -127,5 +141,6 @@ function summarizePresetCounts(
   if (instructions > 0) {
     parts.push(`${instructions} instruction${instructions === 1 ? '' : 's'}`);
   }
+  if (gitHooks > 0) parts.push(`${gitHooks} git-hook${gitHooks === 1 ? '' : 's'}`);
   return parts.length > 0 ? parts.join(', ') : 'empty';
 }

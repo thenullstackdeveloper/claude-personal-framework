@@ -11,6 +11,21 @@ const sampleData: InstallReportData = {
   commands: [],
   settings: false,
   instructions: false,
+  gitHooks: [],
+  gitConfigActivated: false,
+  gitConfigCurrent: null,
+};
+
+const emptyData: InstallReportData = {
+  presetName: 'empty',
+  agents: [],
+  skills: [],
+  commands: [],
+  settings: false,
+  instructions: false,
+  gitHooks: [],
+  gitConfigActivated: false,
+  gitConfigCurrent: null,
 };
 
 describe('<InstallReport />', () => {
@@ -24,24 +39,14 @@ describe('<InstallReport />', () => {
     });
 
     it('says "No artifacts to install" when everything is empty', () => {
-      const empty: InstallReportData = {
-        presetName: 'empty',
-        agents: [],
-        skills: [],
-        commands: [],
-        settings: false,
-        instructions: false,
-      };
-      render(<InstallReport status="success" data={empty} onDismiss={() => {}} />);
+      render(<InstallReport status="success" data={emptyData} onDismiss={() => {}} />);
       expect(screen.getByText(/No artifacts to install\./)).toBeInTheDocument();
     });
 
     it('reports settings and instructions when they were written', () => {
       const data: InstallReportData = {
+        ...emptyData,
         presetName: 'nestjs',
-        agents: [],
-        skills: [],
-        commands: [],
         settings: true,
         instructions: true,
       };
@@ -51,6 +56,34 @@ describe('<InstallReport />', () => {
       expect(screen.getByText('.claude/settings.json')).toBeInTheDocument();
       expect(screen.getByText(/Instructions:/)).toBeInTheDocument();
       expect(screen.getByText('.claude/CLAUDE.md')).toBeInTheDocument();
+    });
+
+    it('reports git hooks and core.hooksPath when activated', () => {
+      const data: InstallReportData = {
+        ...emptyData,
+        presetName: 'base',
+        gitHooks: ['commit-msg', 'pre-commit'],
+        gitConfigActivated: true,
+        gitConfigCurrent: '.githooks',
+      };
+      render(<InstallReport status="success" data={data} onDismiss={() => {}} />);
+      expect(screen.getByText(/Git hooks:/)).toBeInTheDocument();
+      expect(screen.getByText(/commit-msg, pre-commit/)).toBeInTheDocument();
+      expect(screen.getByText('core.hooksPath = .githooks')).toBeInTheDocument();
+      expect(screen.getByText(/\(set by install\)/)).toBeInTheDocument();
+    });
+
+    it('reports the existing core.hooksPath when it was respected (not overwritten)', () => {
+      const data: InstallReportData = {
+        ...emptyData,
+        presetName: 'base',
+        gitHooks: ['commit-msg'],
+        gitConfigActivated: false,
+        gitConfigCurrent: '.my-hooks',
+      };
+      render(<InstallReport status="success" data={data} onDismiss={() => {}} />);
+      expect(screen.getByText('core.hooksPath = .my-hooks')).toBeInTheDocument();
+      expect(screen.getByText(/\(left as is — already set\)/)).toBeInTheDocument();
     });
 
     it('invokes onDismiss when the Dismiss button is clicked', async () => {
@@ -119,6 +152,30 @@ describe('<InstallReport />', () => {
       );
       await user.click(screen.getByRole('button', { name: /retry/i }));
       expect(onRetry).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('take-over (UNMANAGED_GIT_HOOK)', () => {
+    const takeoverError: CliError = {
+      code: 'UNMANAGED_GIT_HOOK',
+      message: '.githooks/commit-msg exists but is not managed by this framework.',
+      hookName: 'commit-msg',
+    };
+
+    it('renders the take-over banner naming the offending hook', () => {
+      render(<InstallReport status="error" error={takeoverError} onDismiss={() => {}} />);
+      expect(screen.getByText(/Project has an unmanaged git hook/)).toBeInTheDocument();
+      expect(screen.getByText('.githooks/commit-msg')).toBeInTheDocument();
+      expect(screen.queryByText(/Install failed/)).not.toBeInTheDocument();
+    });
+
+    it('falls back to <unknown> when hookName is missing from the error', () => {
+      const noHookName: CliError = {
+        code: 'UNMANAGED_GIT_HOOK',
+        message: '...',
+      };
+      render(<InstallReport status="error" error={noHookName} onDismiss={() => {}} />);
+      expect(screen.getByText('.githooks/<unknown>')).toBeInTheDocument();
     });
   });
 });

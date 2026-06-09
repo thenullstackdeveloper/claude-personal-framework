@@ -11,6 +11,11 @@ use std::process::Command;
 pub struct CliError {
     pub code: String,
     pub message: String,
+    /// Populated only when `code == "UNMANAGED_GIT_HOOK"`. Other errors leave
+    /// this absent both in the JSON envelope and in the Rust struct — the
+    /// frontend uses it to name the offending hook in the take-over banner.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hook_name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -23,11 +28,13 @@ impl CliError {
         CliError {
             code: "CLI_FAILURE".to_string(),
             message: message.into(),
+            hook_name: None,
         }
     }
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ListPreset {
     name: String,
     extends: Vec<String>,
@@ -35,6 +42,7 @@ struct ListPreset {
     skills: Vec<String>,
     commands: Vec<String>,
     instructions: Vec<String>,
+    git_hooks: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -44,12 +52,20 @@ struct ListArtifact {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitHookSummary {
+    hook_name: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CatalogReport {
     presets: Vec<ListPreset>,
     agents: Vec<ListArtifact>,
     skills: Vec<ListArtifact>,
     commands: Vec<ListArtifact>,
     instructions: Vec<ListArtifact>,
+    git_hooks: Vec<GitHookSummary>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -61,6 +77,9 @@ struct InstallReport {
     commands: Vec<String>,
     settings: bool,
     instructions: bool,
+    git_hooks: Vec<String>,
+    git_config_activated: bool,
+    git_config_current: Option<String>,
 }
 
 fn cli_path() -> String {

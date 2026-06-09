@@ -10,13 +10,19 @@ import { invoke } from '@tauri-apps/api/core';
 export type CliError = {
   readonly code: string;
   readonly message: string;
+  /** Populated only when `code === 'UNMANAGED_GIT_HOOK'`. */
+  readonly hookName?: string;
 };
 
 export const toCliError = (e: unknown): CliError => {
   if (e && typeof e === 'object' && 'code' in e && 'message' in e) {
-    const { code, message } = e as { code: unknown; message: unknown };
+    const { code, message, hookName } = e as {
+      code: unknown;
+      message: unknown;
+      hookName?: unknown;
+    };
     if (typeof code === 'string' && typeof message === 'string') {
-      return { code, message };
+      return typeof hookName === 'string' ? { code, message, hookName } : { code, message };
     }
   }
   if (typeof e === 'string') return { code: 'CLI_FAILURE', message: e };
@@ -31,11 +37,16 @@ export type ListPreset = {
   readonly skills: readonly string[];
   readonly commands: readonly string[];
   readonly instructions: readonly string[];
+  readonly gitHooks: readonly string[];
 };
 
 export type ListArtifact = {
   readonly id: string;
   readonly description: string;
+};
+
+export type GitHookSummary = {
+  readonly hookName: string;
 };
 
 export type CatalogReport = {
@@ -44,6 +55,7 @@ export type CatalogReport = {
   readonly skills: readonly ListArtifact[];
   readonly commands: readonly ListArtifact[];
   readonly instructions: readonly ListArtifact[];
+  readonly gitHooks: readonly GitHookSummary[];
 };
 
 export type InstallReport = {
@@ -53,6 +65,9 @@ export type InstallReport = {
   readonly commands: readonly string[];
   readonly settings: boolean;
   readonly instructions: boolean;
+  readonly gitHooks: readonly string[];
+  readonly gitConfigActivated: boolean;
+  readonly gitConfigCurrent: string | null;
 };
 
 export const listCatalog = (frameworkRoot: string): Promise<CatalogReport> => {
