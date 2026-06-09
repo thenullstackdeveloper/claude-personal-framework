@@ -1,6 +1,7 @@
 import type {
   AgentSummary,
   CommandSummary,
+  GitHookSummary,
   InstructionsSummary,
   SkillSummary,
 } from '../../../domain/model/artifact-summary.js';
@@ -17,15 +18,17 @@ export type ListCatalogResult = {
   readonly skills: readonly SkillSummary[];
   readonly commands: readonly CommandSummary[];
   readonly instructions: readonly InstructionsSummary[];
+  readonly gitHooks: readonly GitHookSummary[];
 };
 
 export const listCatalog = async ({ catalog }: ListCatalogInput): Promise<ListCatalogResult> => {
-  const [presets, agents, skills, commands, instructions] = await Promise.all([
+  const [presets, agents, skills, commands, instructions, gitHooks] = await Promise.all([
     catalog.listPresets(),
     catalog.listAgents(),
     catalog.listSkills(),
     catalog.listCommands(),
     catalog.listInstructions(),
+    catalog.listGitHooks(),
   ]);
-  return { presets, agents, skills, commands, instructions };
+  return { presets, agents, skills, commands, instructions, gitHooks };
 };

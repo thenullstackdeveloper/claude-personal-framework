@@ -141,9 +141,16 @@ const main = async (): Promise<void> => {
 
 main().catch((err) => {
   const json = process.argv.includes('--json');
-  const e = err as Error & { code?: string };
+  const e = err as Error & { code?: string; hookName?: string };
   if (json) {
-    const payload = { error: { code: e.code ?? 'UNKNOWN', message: e.message } };
+    const payload: { error: { code: string; message: string; hookName?: string } } = {
+      error: { code: e.code ?? 'UNKNOWN', message: e.message },
+    };
+    // UnmanagedGitHookError carries the offending hookName so the UI can
+    // name it; surface it explicitly in the JSON envelope.
+    if (e.code === 'UNMANAGED_GIT_HOOK' && typeof e.hookName === 'string') {
+      payload.error.hookName = e.hookName;
+    }
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
   } else {
     process.stderr.write(`Error: ${e.message}\n`);

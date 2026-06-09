@@ -3,10 +3,12 @@ import type { Agent } from '../../../domain/model/agent.js';
 import type {
   AgentSummary,
   CommandSummary,
+  GitHookSummary,
   InstructionsSummary,
   SkillSummary,
 } from '../../../domain/model/artifact-summary.js';
 import type { Command } from '../../../domain/model/command.js';
+import type { GitHook } from '../../../domain/model/git-hook.js';
 import { AgentId, CommandId, PresetName, SkillId } from '../../../domain/model/identifiers.js';
 import type { Instructions } from '../../../domain/model/instructions.js';
 import { Preset } from '../../../domain/model/preset.js';
@@ -21,6 +23,7 @@ class StubCatalog implements CatalogPort {
     private readonly skills: readonly SkillSummary[],
     private readonly commands: readonly CommandSummary[],
     private readonly instructions: readonly InstructionsSummary[] = [],
+    private readonly gitHooks: readonly GitHookSummary[] = [],
   ) {}
 
   async listPresets(): Promise<readonly Preset[]> {
@@ -38,6 +41,9 @@ class StubCatalog implements CatalogPort {
   async listInstructions(): Promise<readonly InstructionsSummary[]> {
     return this.instructions;
   }
+  async listGitHooks(): Promise<readonly GitHookSummary[]> {
+    return this.gitHooks;
+  }
   async readAgent(): Promise<Agent> {
     throw new Error('not used in listCatalog tests');
   }
@@ -48,6 +54,9 @@ class StubCatalog implements CatalogPort {
     throw new Error('not used in listCatalog tests');
   }
   async readInstructions(): Promise<Instructions> {
+    throw new Error('not used in listCatalog tests');
+  }
+  async readGitHook(): Promise<GitHook> {
     throw new Error('not used in listCatalog tests');
   }
 }
@@ -96,13 +105,15 @@ describe('listCatalog use case', () => {
       listSkills: () => slowList<SkillSummary>([]),
       listCommands: () => slowList<CommandSummary>([]),
       listInstructions: () => slowList<InstructionsSummary>([]),
+      listGitHooks: () => slowList<GitHookSummary>([]),
       readAgent: () => Promise.reject(new Error('unused')),
       readSkill: () => Promise.reject(new Error('unused')),
       readCommand: () => Promise.reject(new Error('unused')),
       readInstructions: () => Promise.reject(new Error('unused')),
+      readGitHook: () => Promise.reject(new Error('unused')),
     };
 
     await listCatalog({ catalog });
-    expect(maxConcurrent).toBe(5);
+    expect(maxConcurrent).toBe(6);
   });
 });

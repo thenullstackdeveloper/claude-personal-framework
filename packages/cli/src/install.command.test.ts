@@ -93,16 +93,24 @@ overrides:
   });
 });
 
+const baseReport = (overrides: Partial<Parameters<typeof formatInstallReport>[0]> = {}) => ({
+  presetName: 'react-native',
+  agents: [] as readonly string[],
+  skills: [] as readonly string[],
+  commands: [] as readonly string[],
+  settings: false,
+  instructions: false,
+  gitHooks: [] as readonly string[],
+  gitConfigActivated: false,
+  gitConfigCurrent: null as string | null,
+  ...overrides,
+});
+
 describe('formatInstallReport', () => {
   it('shows a summary with sections per artifact kind', () => {
-    const out = formatInstallReport({
-      presetName: 'react-native',
-      agents: ['docs-manager', 'pr-creator'],
-      skills: ['hexagonal-rn'],
-      commands: [],
-      settings: false,
-      instructions: false,
-    });
+    const out = formatInstallReport(
+      baseReport({ agents: ['docs-manager', 'pr-creator'], skills: ['hexagonal-rn'] }),
+    );
     expect(out).toContain('Installed preset "react-native"');
     expect(out).toContain('Agents (2):');
     expect(out).toContain('- docs-manager');
@@ -111,55 +119,84 @@ describe('formatInstallReport', () => {
   });
 
   it('shows a friendly line when there is nothing to install', () => {
-    const out = formatInstallReport({
-      presetName: 'empty',
-      agents: [],
-      skills: [],
-      commands: [],
-      settings: false,
-      instructions: false,
-    });
+    const out = formatInstallReport(baseReport({ presetName: 'empty' }));
     expect(out).toContain('(no artifacts to install)');
   });
 
   it('reports settings when written', () => {
-    const out = formatInstallReport({
-      presetName: 'react-native',
-      agents: [],
-      skills: [],
-      commands: [],
-      settings: true,
-      instructions: false,
-    });
+    const out = formatInstallReport(baseReport({ settings: true }));
     expect(out).toContain('Settings: .claude/settings.json written.');
     expect(out).not.toContain('(no artifacts to install)');
   });
 
   it('reports instructions when written', () => {
-    const out = formatInstallReport({
-      presetName: 'react-native',
-      agents: [],
-      skills: [],
-      commands: [],
-      settings: false,
-      instructions: true,
-    });
+    const out = formatInstallReport(baseReport({ instructions: true }));
     expect(out).toContain('Instructions: .claude/CLAUDE.md written.');
     expect(out).not.toContain('(no artifacts to install)');
+  });
+
+  describe('git hooks', () => {
+    it('lists installed hooks under a "Git hooks" section', () => {
+      const out = formatInstallReport(
+        baseReport({
+          gitHooks: ['commit-msg', 'pre-commit', 'pre-push'],
+          gitConfigActivated: true,
+          gitConfigCurrent: '.githooks',
+        }),
+      );
+      expect(out).toContain('Git hooks (3):');
+      expect(out).toContain('- commit-msg');
+      expect(out).toContain('- pre-commit');
+      expect(out).toContain('- pre-push');
+    });
+
+    it('reports activation when gitConfigActivated is true', () => {
+      const out = formatInstallReport(
+        baseReport({
+          gitHooks: ['commit-msg'],
+          gitConfigActivated: true,
+          gitConfigCurrent: '.githooks',
+        }),
+      );
+      expect(out).toContain('Git config: set core.hooksPath = .githooks');
+    });
+
+    it('reports "left as is" when an existing core.hooksPath value is respected', () => {
+      const out = formatInstallReport(
+        baseReport({
+          gitHooks: ['commit-msg'],
+          gitConfigActivated: false,
+          gitConfigCurrent: '.my-hooks',
+        }),
+      );
+      expect(out).toContain('Git config: core.hooksPath = .my-hooks — left as is (already set).');
+    });
+
+    it('omits the git config line when no hooks are installed', () => {
+      const out = formatInstallReport(baseReport({ settings: true }));
+      expect(out).not.toContain('core.hooksPath');
+    });
+
+    it('hooks count toward the "something installed" check', () => {
+      const out = formatInstallReport(baseReport({ gitHooks: ['commit-msg'] }));
+      expect(out).not.toContain('(no artifacts to install)');
+    });
   });
 });
 
 describe('formatInstallReportJson', () => {
-  it('returns valid parseable JSON', () => {
-    const report = {
-      presetName: 'react-native',
+  it('returns valid parseable JSON including the git-hooks fields', () => {
+    const report = baseReport({
       agents: ['docs-manager', 'pr-creator'],
       skills: ['hexagonal-rn'],
-      commands: [],
-      settings: false,
-      instructions: false,
-    };
+      gitHooks: ['commit-msg'],
+      gitConfigActivated: true,
+      gitConfigCurrent: '.githooks',
+    });
     const out = formatInstallReportJson(report);
-    expect(JSON.parse(out)).toEqual(report);
+    const parsed = JSON.parse(out);
+    expect(parsed.gitHooks).toEqual(['commit-msg']);
+    expect(parsed.gitConfigActivated).toBe(true);
+    expect(parsed.gitConfigCurrent).toBe('.githooks');
   });
 });

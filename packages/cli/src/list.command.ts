@@ -11,11 +11,16 @@ export type ListCommandPreset = {
   readonly skills: readonly string[];
   readonly commands: readonly string[];
   readonly instructions: readonly string[];
+  readonly gitHooks: readonly string[];
 };
 
 export type ListCommandArtifact = {
   readonly id: string;
   readonly description: string;
+};
+
+export type ListCommandGitHook = {
+  readonly hookName: string;
 };
 
 export type ListCommandReport = {
@@ -24,6 +29,7 @@ export type ListCommandReport = {
   readonly skills: readonly ListCommandArtifact[];
   readonly commands: readonly ListCommandArtifact[];
   readonly instructions: readonly ListCommandArtifact[];
+  readonly gitHooks: readonly ListCommandGitHook[];
 };
 
 export const runList = async (args: ListCommandArgs): Promise<ListCommandReport> => {
@@ -38,6 +44,7 @@ export const runList = async (args: ListCommandArgs): Promise<ListCommandReport>
       skills: p.skillIds.map(String),
       commands: p.commandIds.map(String),
       instructions: p.instructionsIds.map(String),
+      gitHooks: p.gitHookNames.map(String),
     })),
     agents: result.agents.map((a) => ({
       id: a.id.toString(),
@@ -55,6 +62,9 @@ export const runList = async (args: ListCommandArgs): Promise<ListCommandReport>
       id: i.id.toString(),
       description: i.description,
     })),
+    gitHooks: result.gitHooks.map((h) => ({
+      hookName: h.hookName,
+    })),
   };
 };
 
@@ -69,6 +79,12 @@ const renderArtifactList = (
     const desc = item.description ? ` — ${item.description}` : '';
     lines.push(`  - ${item.id}${desc}`);
   }
+};
+
+const renderGitHookList = (items: readonly ListCommandGitHook[], lines: string[]) => {
+  if (items.length === 0) return;
+  lines.push(`\nGit hooks (${items.length}):`);
+  for (const item of items) lines.push(`  - ${item.hookName}`);
 };
 
 export const formatListReport = (report: ListCommandReport): string => {
@@ -86,6 +102,7 @@ export const formatListReport = (report: ListCommandReport): string => {
       if (preset.instructions.length > 0) {
         counts.push(`${preset.instructions.length} instructions`);
       }
+      if (preset.gitHooks.length > 0) counts.push(`${preset.gitHooks.length} git-hooks`);
       const summary = counts.length > 0 ? `: ${counts.join(', ')}` : '';
       lines.push(`  - ${preset.name}${extendsPart}${summary}`);
     }
@@ -95,13 +112,15 @@ export const formatListReport = (report: ListCommandReport): string => {
   renderArtifactList('Skills', report.skills, lines);
   renderArtifactList('Commands', report.commands, lines);
   renderArtifactList('Instructions', report.instructions, lines);
+  renderGitHookList(report.gitHooks, lines);
 
   if (
     report.presets.length === 0 &&
     report.agents.length === 0 &&
     report.skills.length === 0 &&
     report.commands.length === 0 &&
-    report.instructions.length === 0
+    report.instructions.length === 0 &&
+    report.gitHooks.length === 0
   ) {
     lines.push('(empty catalog)');
   }

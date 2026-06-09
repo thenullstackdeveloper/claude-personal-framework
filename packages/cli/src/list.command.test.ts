@@ -70,6 +70,7 @@ describe('formatListReport (human)', () => {
           skills: [],
           commands: [],
           instructions: [],
+          gitHooks: [],
         },
         {
           name: 'nestjs',
@@ -78,12 +79,14 @@ describe('formatListReport (human)', () => {
           skills: ['s'],
           commands: [],
           instructions: ['intro'],
+          gitHooks: [],
         },
       ],
       agents: [{ id: 'a', description: 'agent a' }],
       skills: [{ id: 's', description: '' }],
       commands: [],
       instructions: [{ id: 'intro', description: '' }],
+      gitHooks: [],
     });
     expect(out).toContain('Presets (2):');
     expect(out).toContain('base: 2 agents');
@@ -95,6 +98,33 @@ describe('formatListReport (human)', () => {
     expect(out).toContain('Instructions (1):');
     expect(out).toContain('- intro');
     expect(out).not.toContain('Commands');
+    expect(out).not.toContain('Git hooks');
+  });
+
+  it('shows a Git hooks section and counts hooks per preset', () => {
+    const out = formatListReport({
+      presets: [
+        {
+          name: 'base',
+          extends: [],
+          agents: [],
+          skills: [],
+          commands: [],
+          instructions: [],
+          gitHooks: ['commit-msg', 'pre-commit', 'pre-push'],
+        },
+      ],
+      agents: [],
+      skills: [],
+      commands: [],
+      instructions: [],
+      gitHooks: [{ hookName: 'commit-msg' }, { hookName: 'pre-commit' }, { hookName: 'pre-push' }],
+    });
+    expect(out).toContain('base: 3 git-hooks');
+    expect(out).toContain('Git hooks (3):');
+    expect(out).toContain('- commit-msg');
+    expect(out).toContain('- pre-commit');
+    expect(out).toContain('- pre-push');
   });
 
   it('shows (empty catalog) when there is nothing', () => {
@@ -104,13 +134,14 @@ describe('formatListReport (human)', () => {
       skills: [],
       commands: [],
       instructions: [],
+      gitHooks: [],
     });
     expect(out).toBe('(empty catalog)');
   });
 });
 
 describe('formatListReportJson', () => {
-  it('returns valid JSON', () => {
+  it('returns valid JSON including git hooks', () => {
     const report = {
       presets: [
         {
@@ -120,12 +151,14 @@ describe('formatListReportJson', () => {
           skills: [],
           commands: [],
           instructions: [],
+          gitHooks: ['commit-msg'],
         },
       ],
       agents: [{ id: 'a', description: 'desc' }],
       skills: [],
       commands: [],
       instructions: [],
+      gitHooks: [{ hookName: 'commit-msg' }],
     };
     const out = formatListReportJson(report);
     expect(JSON.parse(out)).toEqual(report);

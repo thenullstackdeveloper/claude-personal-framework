@@ -47,6 +47,17 @@ export type InstallResult = {
     readonly gitHooks: readonly HookName[];
     /** True if `git config core.hooksPath` was set during this install. */
     readonly gitConfigActivated: boolean;
+    /**
+     * Value of `core.hooksPath` after the install runs:
+     *  - `null`     → `gitConfig` not provided, no hooks in the composition,
+     *                  or the use-case had no opportunity to inspect.
+     *  - `'.githooks'` → either just set by this install, or was already that
+     *                  value and we left it as is.
+     *  - any other  → the user has it pointing elsewhere and we deliberately
+     *                  did not overwrite it. Reports surface this verbatim so
+     *                  the user knows where their hooks live today.
+     */
+    readonly gitConfigCurrent: string | null;
   };
 };
 
@@ -98,7 +109,10 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
   // in the composition and the user hasn't already configured the
   // setting to something. Idempotent: re-installs leave existing config
   // untouched whether it matches `.githooks` or not.
-  const gitConfigActivated = await maybeActivateHooksPath(gitConfig, composition.gitHooks.length);
+  const { activated: gitConfigActivated, current: gitConfigCurrent } = await maybeActivateHooksPath(
+    gitConfig,
+    composition.gitHooks.length,
+  );
 
   const nextLockfile = Lockfile.of({
     presetName: manifest.presetName,
@@ -136,19 +150,26 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
       instructions: instructionsWritten,
       gitHooks: composition.gitHooks.map((h) => h.hookName),
       gitConfigActivated,
+      gitConfigCurrent,
     },
   };
+};
+
+type ActivationOutcome = {
+  readonly activated: boolean;
+  /** Value of `core.hooksPath` after this call. See InstallResult.written.gitConfigCurrent. */
+  readonly current: string | null;
 };
 
 const maybeActivateHooksPath = async (
   gitConfig: GitConfigPort | undefined,
   hookCount: number,
-): Promise<boolean> => {
-  if (!gitConfig || hookCount === 0) return false;
-  const current = await gitConfig.getHooksPath();
-  if (current !== null) return false; // respect any existing user choice
+): Promise<ActivationOutcome> => {
+  if (!gitConfig || hookCount === 0) return { activated: false, current: null };
+  const existing = await gitConfig.getHooksPath();
+  if (existing !== null) return { activated: false, current: existing };
   await gitConfig.setHooksPath(GITHOOKS_DIR);
-  return true;
+  return { activated: true, current: GITHOOKS_DIR };
 };
 
 const applySettingsDrift = async (

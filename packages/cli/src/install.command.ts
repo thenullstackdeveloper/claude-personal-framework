@@ -1,5 +1,6 @@
 import {
   CatalogReader,
+  ChildProcessGitConfig,
   ClaudeWriter,
   FsManifestStore,
   FsProjectInspector,
@@ -19,6 +20,9 @@ export type InstallCommandReport = {
   readonly commands: readonly string[];
   readonly settings: boolean;
   readonly instructions: boolean;
+  readonly gitHooks: readonly string[];
+  readonly gitConfigActivated: boolean;
+  readonly gitConfigCurrent: string | null;
 };
 
 export const runInstall = async (args: InstallCommandArgs): Promise<InstallCommandReport> => {
@@ -34,6 +38,7 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
   const writer = new ClaudeWriter(args.projectRoot);
   const lockfileStore = new LockfileStore(args.projectRoot);
   const inspector = new FsProjectInspector(args.projectRoot);
+  const gitConfig = new ChildProcessGitConfig(args.projectRoot);
 
   const result = await install({
     manifest,
@@ -42,6 +47,7 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
     writer,
     lockfileStore,
     inspector,
+    gitConfig,
   });
 
   return {
@@ -51,6 +57,9 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
     commands: result.written.commands.map(String),
     settings: result.written.settings,
     instructions: result.written.instructions,
+    gitHooks: result.written.gitHooks.map(String),
+    gitConfigActivated: result.written.gitConfigActivated,
+    gitConfigCurrent: result.written.gitConfigCurrent,
   };
 };
 
@@ -64,9 +73,20 @@ export const formatInstallReport = (report: InstallCommandReport): string => {
   section('Agents', report.agents);
   section('Skills', report.skills);
   section('Commands', report.commands);
+  section('Git hooks', report.gitHooks);
   if (report.settings) lines.push('  Settings: .claude/settings.json written.');
   if (report.instructions) lines.push('  Instructions: .claude/CLAUDE.md written.');
-  const totalArtifacts = report.agents.length + report.skills.length + report.commands.length;
+  if (report.gitHooks.length > 0) {
+    if (report.gitConfigActivated) {
+      lines.push('  Git config: set core.hooksPath = .githooks');
+    } else if (report.gitConfigCurrent !== null) {
+      lines.push(
+        `  Git config: core.hooksPath = ${report.gitConfigCurrent} — left as is (already set).`,
+      );
+    }
+  }
+  const totalArtifacts =
+    report.agents.length + report.skills.length + report.commands.length + report.gitHooks.length;
   if (totalArtifacts === 0 && !report.settings && !report.instructions) {
     lines.push('  (no artifacts to install)');
   }
