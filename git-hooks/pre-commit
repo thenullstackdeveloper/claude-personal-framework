@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# pre-commit hook — run the project linter before each commit.
+#
+# Enable once per clone with:
+#   git config core.hooksPath .githooks
+#
+# Assumes pnpm is on PATH (the framework targets pnpm workspaces).
+# Bypass with `git commit --no-verify` when you know what you're doing.
+
+exec pnpm lint

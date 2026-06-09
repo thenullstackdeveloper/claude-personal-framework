@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# pre-push hook — run the full workspace test suite before each push.
+#
+# Enable once per clone with:
+#   git config core.hooksPath .githooks
+#
+# Assumes pnpm is on PATH. Bypass with `git push --no-verify` when needed.
+
+exec pnpm -r test

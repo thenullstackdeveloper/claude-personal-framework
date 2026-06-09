@@ -7,3 +7,7 @@ skills:
   - typescript-hexagonal-rules
   - hexagonal-testing-strategy
   - plane-conventions
+git-hooks:
+  - commit-msg
+  - pre-commit
+  - pre-push
