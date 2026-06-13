@@ -73,6 +73,43 @@ describe('<InstallReport />', () => {
       expect(screen.getByText(/\(set by install\)/)).toBeInTheDocument();
     });
 
+    it('header counts .claude/ and .githooks/ separately when both are present', () => {
+      const data: InstallReportData = {
+        ...emptyData,
+        presetName: 'base',
+        agents: ['hexagonal-architect', 'pr-creator', 'plane-pm'],
+        skills: ['commit-style', 'typescript-hexagonal-rules', 'hexagonal-testing-strategy'],
+        gitHooks: ['commit-msg', 'pre-commit', 'pre-push'],
+      };
+      render(<InstallReport status="success" data={data} onDismiss={() => {}} />);
+      expect(
+        screen.getByText('6 artifacts written to .claude/, 3 git hooks to .githooks/'),
+      ).toBeInTheDocument();
+    });
+
+    it('header says only git hooks when no .claude/ artifacts were written', () => {
+      const data: InstallReportData = {
+        ...emptyData,
+        presetName: 'hooks-only',
+        gitHooks: ['commit-msg', 'pre-commit', 'pre-push'],
+      };
+      render(<InstallReport status="success" data={data} onDismiss={() => {}} />);
+      expect(screen.getByText('3 git hooks written to .githooks/')).toBeInTheDocument();
+    });
+
+    it('header pluralizes correctly for singular counts', () => {
+      const data: InstallReportData = {
+        ...emptyData,
+        presetName: 'singular',
+        agents: ['hexagonal-architect'],
+        gitHooks: ['commit-msg'],
+      };
+      render(<InstallReport status="success" data={data} onDismiss={() => {}} />);
+      expect(
+        screen.getByText('1 artifact written to .claude/, 1 git hook to .githooks/'),
+      ).toBeInTheDocument();
+    });
+
     it('reports the existing core.hooksPath when it was respected (not overwritten)', () => {
       const data: InstallReportData = {
         ...emptyData,

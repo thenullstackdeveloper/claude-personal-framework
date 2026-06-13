@@ -106,10 +106,26 @@ export function InstallReport({ status, data, error, onDismiss, onRetry }: Insta
 
   if (!data) return null;
 
-  const artifactCount =
-    data.agents.length + data.skills.length + data.commands.length + data.gitHooks.length;
+  const claudeCount = data.agents.length + data.skills.length + data.commands.length;
+  const hooksCount = data.gitHooks.length;
   const wroteSingletons = data.settings || data.instructions;
-  const writtenNothing = artifactCount === 0 && !wroteSingletons;
+  const writtenNothing = claudeCount === 0 && hooksCount === 0 && !wroteSingletons;
+
+  const headerSummary = (() => {
+    if (writtenNothing) return 'No artifacts to install.';
+    const parts: string[] = [];
+    if (claudeCount > 0) {
+      const noun = claudeCount === 1 ? 'artifact' : 'artifacts';
+      parts.push(`${claudeCount} ${noun} written to .claude/`);
+    }
+    if (hooksCount > 0) {
+      const noun = hooksCount === 1 ? 'hook' : 'hooks';
+      const verb = parts.length === 0 ? 'written ' : '';
+      parts.push(`${hooksCount} git ${noun} ${verb}to .githooks/`);
+    }
+    if (parts.length === 0) return 'Configuration written.';
+    return parts.join(', ');
+  })();
 
   return (
     <section className="bg-emerald-950/40 border border-emerald-900 rounded-lg p-4 flex gap-3 items-start">
@@ -118,11 +134,7 @@ export function InstallReport({ status, data, error, onDismiss, onRetry }: Insta
         <h3 className="text-sm font-semibold text-emerald-200">
           Installed preset "{data.presetName}"
         </h3>
-        <p className="text-xs text-emerald-300/80">
-          {writtenNothing
-            ? 'No artifacts to install.'
-            : `${artifactCount} artifact${artifactCount === 1 ? '' : 's'} written to .claude/`}
-        </p>
+        <p className="text-xs text-emerald-300/80">{headerSummary}</p>
         <ul className="text-xs text-emerald-300/70 mt-2 space-y-0.5">
           {data.agents.length > 0 && (
             <li>
