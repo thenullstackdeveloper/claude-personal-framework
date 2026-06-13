@@ -14,6 +14,7 @@ const sampleData: InstallReportData = {
   gitHooks: [],
   gitConfigActivated: false,
   gitConfigCurrent: null,
+  gitConfigSkippedReason: null,
 };
 
 const emptyData: InstallReportData = {
@@ -26,6 +27,7 @@ const emptyData: InstallReportData = {
   gitHooks: [],
   gitConfigActivated: false,
   gitConfigCurrent: null,
+  gitConfigSkippedReason: null,
 };
 
 describe('<InstallReport />', () => {
@@ -121,6 +123,23 @@ describe('<InstallReport />', () => {
       render(<InstallReport status="success" data={data} onDismiss={() => {}} />);
       expect(screen.getByText('core.hooksPath = .my-hooks')).toBeInTheDocument();
       expect(screen.getByText(/\(left as is — already set\)/)).toBeInTheDocument();
+    });
+
+    it('reports the skipped-not-a-git-repo case with a guidance line', () => {
+      const data: InstallReportData = {
+        ...emptyData,
+        presetName: 'base',
+        gitHooks: ['commit-msg'],
+        gitConfigActivated: false,
+        gitConfigCurrent: null,
+        gitConfigSkippedReason: 'not-a-git-repo',
+      };
+      render(<InstallReport status="success" data={data} onDismiss={() => {}} />);
+      expect(screen.getByText(/project is not a git repository/)).toBeInTheDocument();
+      expect(screen.getByText('git init')).toBeInTheDocument();
+      // Sanity: the other two git-config lines should not also render.
+      expect(screen.queryByText(/set by install/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/left as is — already set/)).not.toBeInTheDocument();
     });
 
     it('invokes onDismiss when the Dismiss button is clicked', async () => {

@@ -68,6 +68,7 @@ export type InstallReport = {
   readonly gitHooks: readonly string[];
   readonly gitConfigActivated: boolean;
   readonly gitConfigCurrent: string | null;
+  readonly gitConfigSkippedReason: 'not-a-git-repo' | null;
 };
 
 export const listCatalog = (frameworkRoot: string): Promise<CatalogReport> => {

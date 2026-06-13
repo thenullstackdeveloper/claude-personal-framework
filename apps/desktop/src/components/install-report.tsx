@@ -181,6 +181,15 @@ export function InstallReport({ status, data, error, onDismiss, onRetry }: Insta
                 <span className="text-emerald-400/60">(left as is — already set)</span>
               </li>
             )}
+          {data.gitHooks.length > 0 && data.gitConfigSkippedReason === 'not-a-git-repo' && (
+            <li>
+              Git config:{' '}
+              <span className="text-emerald-400/60">
+                skipped — project is not a git repository (run{' '}
+                <span className="font-mono">git init</span> to enable the hooks)
+              </span>
+            </li>
+          )}
         </ul>
       </div>
       <button

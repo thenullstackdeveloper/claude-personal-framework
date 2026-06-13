@@ -80,6 +80,7 @@ struct InstallReport {
     git_hooks: Vec<String>,
     git_config_activated: bool,
     git_config_current: Option<String>,
+    git_config_skipped_reason: Option<String>,
 }
 
 fn cli_path() -> String {

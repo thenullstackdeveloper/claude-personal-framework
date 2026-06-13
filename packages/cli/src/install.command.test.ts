@@ -103,6 +103,7 @@ const baseReport = (overrides: Partial<Parameters<typeof formatInstallReport>[0]
   gitHooks: [] as readonly string[],
   gitConfigActivated: false,
   gitConfigCurrent: null as string | null,
+  gitConfigSkippedReason: null as 'not-a-git-repo' | null,
   ...overrides,
 });
 
@@ -180,6 +181,23 @@ describe('formatInstallReport', () => {
     it('hooks count toward the "something installed" check', () => {
       const out = formatInstallReport(baseReport({ gitHooks: ['commit-msg'] }));
       expect(out).not.toContain('(no artifacts to install)');
+    });
+
+    it('reports the skipped-not-a-git-repo case with a guidance line', () => {
+      const out = formatInstallReport(
+        baseReport({
+          gitHooks: ['commit-msg'],
+          gitConfigActivated: false,
+          gitConfigCurrent: null,
+          gitConfigSkippedReason: 'not-a-git-repo',
+        }),
+      );
+      expect(out).toContain(
+        "Git config: skipped — project is not a git repository (run 'git init' to enable the hooks).",
+      );
+      // None of the previous git-config lines should also appear.
+      expect(out).not.toContain('set core.hooksPath');
+      expect(out).not.toContain('left as is');
     });
   });
 });

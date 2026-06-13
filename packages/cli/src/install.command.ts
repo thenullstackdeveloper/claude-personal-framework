@@ -23,6 +23,7 @@ export type InstallCommandReport = {
   readonly gitHooks: readonly string[];
   readonly gitConfigActivated: boolean;
   readonly gitConfigCurrent: string | null;
+  readonly gitConfigSkippedReason: 'not-a-git-repo' | null;
 };
 
 export const runInstall = async (args: InstallCommandArgs): Promise<InstallCommandReport> => {
@@ -60,6 +61,7 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
     gitHooks: result.written.gitHooks.map(String),
     gitConfigActivated: result.written.gitConfigActivated,
     gitConfigCurrent: result.written.gitConfigCurrent,
+    gitConfigSkippedReason: result.written.gitConfigSkippedReason,
   };
 };
 
@@ -82,6 +84,10 @@ export const formatInstallReport = (report: InstallCommandReport): string => {
     } else if (report.gitConfigCurrent !== null) {
       lines.push(
         `  Git config: core.hooksPath = ${report.gitConfigCurrent} — left as is (already set).`,
+      );
+    } else if (report.gitConfigSkippedReason === 'not-a-git-repo') {
+      lines.push(
+        "  Git config: skipped — project is not a git repository (run 'git init' to enable the hooks).",
       );
     }
   }
