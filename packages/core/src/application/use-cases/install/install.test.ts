@@ -192,6 +192,7 @@ class StubInspector implements ProjectInspectorPort {
   constructor(
     private claudeMd = false,
     private hooks: Set<HookName> = new Set(),
+    private gitRepo = true,
   ) {}
   setClaudeMd(value: boolean): void {
     this.claudeMd = value;
@@ -200,11 +201,17 @@ class StubInspector implements ProjectInspectorPort {
     if (exists) this.hooks.add(name);
     else this.hooks.delete(name);
   }
+  setGitRepo(value: boolean): void {
+    this.gitRepo = value;
+  }
   async claudeMdExists(): Promise<boolean> {
     return this.claudeMd;
   }
   async gitHookExists(name: HookName): Promise<boolean> {
     return this.hooks.has(name);
+  }
+  async isGitRepo(): Promise<boolean> {
+    return this.gitRepo;
   }
 }
 

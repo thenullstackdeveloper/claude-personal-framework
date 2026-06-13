@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -55,4 +56,26 @@ describe('LocalProjectInspector', () => {
       expect(await inspector.gitHookExists(HookName.of('commit-msg'))).toBe(true);
     });
   });
+
+  describe('isGitRepo', () => {
+    it('returns false when the project root is not a git working tree', async () => {
+      const inspector = new LocalProjectInspector(projectRoot);
+      expect(await inspector.isGitRepo()).toBe(false);
+    });
+
+    it('returns true after `git init` in the project root', async () => {
+      await runGit(['init', '-q'], projectRoot);
+      const inspector = new LocalProjectInspector(projectRoot);
+      expect(await inspector.isGitRepo()).toBe(true);
+    });
+  });
 });
+
+const runGit = (args: readonly string[], cwd: string): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const child = spawn('git', args, { cwd });
+    child.on('error', reject);
+    child.on('close', (code) =>
+      code === 0 ? resolve() : reject(new Error(`git ${args.join(' ')} failed (exit ${code})`)),
+    );
+  });

@@ -21,4 +21,16 @@ export interface ProjectInspectorPort {
    * it.
    */
   gitHookExists(hookName: HookName): Promise<boolean>;
+
+  /**
+   * True if the project root is inside a git working tree. Used by both
+   * `install` (to skip activating `core.hooksPath` gracefully when the
+   * directory isn't yet a repo) and `init` (to surface a typed error so
+   * the desktop UI can offer to run `git init` for the user).
+   *
+   * The implementation must handle worktrees, submodules and the
+   * `$GIT_DIR` env case — hence the recommended detection via
+   * `git rev-parse --is-inside-work-tree` rather than `.git/` existence.
+   */
+  isGitRepo(): Promise<boolean>;
 }
