@@ -18,6 +18,7 @@ type ParsedArgs = {
   readonly path: string | undefined;
   readonly preset: string | undefined;
   readonly json: boolean;
+  readonly initGit: boolean;
 };
 
 const parseArgs = (argv: readonly string[]): ParsedArgs => {
@@ -27,6 +28,7 @@ const parseArgs = (argv: readonly string[]): ParsedArgs => {
   let path: string | undefined;
   let preset: string | undefined;
   let json = false;
+  let initGit = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -41,12 +43,14 @@ const parseArgs = (argv: readonly string[]): ParsedArgs => {
       preset = argv[++i];
     } else if (arg === '--json') {
       json = true;
+    } else if (arg === '--init-git') {
+      initGit = true;
     } else if (!arg.startsWith('--') && !command) {
       command = arg;
     }
   }
 
-  return { command, framework, project, path, preset, json };
+  return { command, framework, project, path, preset, json, initGit };
 };
 
 const printHelp = (): void => {
@@ -67,6 +71,9 @@ const printHelp = (): void => {
     '  --preset <name>      Preset to use — required by init',
     '  --path <path>        Path to inspect — only used by detect',
     '  --json               Emit machine-readable JSON output instead of human text',
+    "  --init-git           For 'init': run 'git init' in the project root automatically if it is",
+    '                       not a git repository yet, then retry. Without this flag, init fails',
+    '                       with NOT_A_GIT_REPO and exits non-zero so scripts can decide.',
   ];
   process.stdout.write(`${lines.join('\n')}\n`);
 };
@@ -76,7 +83,9 @@ const resolveFrameworkRoot = (override: string | undefined): string => {
 };
 
 const main = async (): Promise<void> => {
-  const { command, framework, project, path, preset, json } = parseArgs(process.argv.slice(2));
+  const { command, framework, project, path, preset, json, initGit } = parseArgs(
+    process.argv.slice(2),
+  );
 
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     printHelp();
@@ -94,6 +103,7 @@ const main = async (): Promise<void> => {
       frameworkRoot: resolveFrameworkRoot(framework),
       projectRoot: project ?? process.cwd(),
       presetName: preset,
+      initGit,
     });
     const output = json ? formatInitReportJson(report) : formatInitReport(report);
     process.stdout.write(`${output}\n`);
@@ -141,15 +151,27 @@ const main = async (): Promise<void> => {
 
 main().catch((err) => {
   const json = process.argv.includes('--json');
-  const e = err as Error & { code?: string; hookName?: string };
+  const e = err as Error & { code?: string; hookName?: string; projectRoot?: string };
   if (json) {
-    const payload: { error: { code: string; message: string; hookName?: string } } = {
+    const payload: {
+      error: {
+        code: string;
+        message: string;
+        hookName?: string;
+        projectRoot?: string;
+      };
+    } = {
       error: { code: e.code ?? 'UNKNOWN', message: e.message },
     };
     // UnmanagedGitHookError carries the offending hookName so the UI can
     // name it; surface it explicitly in the JSON envelope.
     if (e.code === 'UNMANAGED_GIT_HOOK' && typeof e.hookName === 'string') {
       payload.error.hookName = e.hookName;
+    }
+    // NotAGitRepoError carries the projectRoot so the desktop modal
+    // names the folder. Without it the UI would have to guess.
+    if (e.code === 'NOT_A_GIT_REPO' && typeof e.projectRoot === 'string') {
+      payload.error.projectRoot = e.projectRoot;
     }
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
   } else {

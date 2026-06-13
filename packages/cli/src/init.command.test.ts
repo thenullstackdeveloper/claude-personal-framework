@@ -86,6 +86,28 @@ describe('runInit (CLI command)', () => {
       await rm(nonGit, { recursive: true, force: true });
     }
   });
+
+  it('runs `git init` and retries when --init-git is set on a non-git project', async () => {
+    await seedPreset('base');
+    const nonGit = await mkdtemp(join(tmpdir(), 'cfw-init-no-git-'));
+    try {
+      const report = await runInit({
+        frameworkRoot: framework,
+        projectRoot: nonGit,
+        presetName: 'base',
+        initGit: true,
+      });
+
+      expect(report.presetName).toBe('base');
+      const content = await readFile(report.manifestPath, 'utf-8');
+      expect(content).toContain('preset: base');
+      // git init populated .git in the project root.
+      const dotGit = await readFile(join(nonGit, '.git', 'HEAD'), 'utf-8');
+      expect(dotGit).toMatch(/^ref:/);
+    } finally {
+      await rm(nonGit, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('formatInitReport (human)', () => {
