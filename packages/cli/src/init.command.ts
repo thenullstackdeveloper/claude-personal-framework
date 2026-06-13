@@ -1,5 +1,11 @@
 import { join } from 'node:path';
-import { CatalogReader, FsManifestStore, PresetName, initProject } from '@claude-fw/core';
+import {
+  CatalogReader,
+  FsManifestStore,
+  LocalProjectInspector,
+  PresetName,
+  initProject,
+} from '@claude-fw/core';
 
 const MANIFEST_FILENAME = '.claude-fw.yaml';
 
@@ -18,11 +24,14 @@ export type InitCommandReport = {
 export const runInit = async (args: InitCommandArgs): Promise<InitCommandReport> => {
   const catalog = new CatalogReader(args.frameworkRoot);
   const manifestStore = new FsManifestStore(args.projectRoot);
+  const inspector = new LocalProjectInspector(args.projectRoot);
 
   await initProject({
     presetName: PresetName.of(args.presetName),
+    projectRoot: args.projectRoot,
     catalog,
     manifestStore,
+    inspector,
   });
 
   return {

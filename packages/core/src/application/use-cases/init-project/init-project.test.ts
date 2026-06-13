@@ -4,17 +4,19 @@ import type { Agent } from '../../../domain/model/agent.js';
 import type {
   AgentSummary,
   CommandSummary,
+  GitHookSummary,
   InstructionsSummary,
   SkillSummary,
 } from '../../../domain/model/artifact-summary.js';
 import type { Command } from '../../../domain/model/command.js';
-import { PresetName } from '../../../domain/model/identifiers.js';
+import type { GitHook } from '../../../domain/model/git-hook.js';
+import { type HookName, PresetName } from '../../../domain/model/identifiers.js';
 import type { Instructions } from '../../../domain/model/instructions.js';
 import { Preset } from '../../../domain/model/preset.js';
 import type { ProjectManifest } from '../../../domain/model/project-manifest.js';
 import type { Skill } from '../../../domain/model/skill.js';
-import type { CatalogPort, ManifestStorePort } from '../../ports/index.js';
-import { ManifestAlreadyExistsError } from './errors.js';
+import type { CatalogPort, ManifestStorePort, ProjectInspectorPort } from '../../ports/index.js';
+import { ManifestAlreadyExistsError, NotAGitRepoError } from './errors.js';
 import { initProject } from './init-project.use-case.js';
 
 class StubCatalog implements CatalogPort {
@@ -34,6 +36,9 @@ class StubCatalog implements CatalogPort {
   async listInstructions(): Promise<readonly InstructionsSummary[]> {
     return [];
   }
+  async listGitHooks(): Promise<readonly GitHookSummary[]> {
+    return [];
+  }
   async readAgent(): Promise<Agent> {
     throw new Error('not used');
   }
@@ -45,6 +50,25 @@ class StubCatalog implements CatalogPort {
   }
   async readInstructions(): Promise<Instructions> {
     throw new Error('not used');
+  }
+  async readGitHook(_name: HookName): Promise<GitHook> {
+    throw new Error('not used');
+  }
+}
+
+class StubInspector implements ProjectInspectorPort {
+  constructor(private gitRepo = true) {}
+  setGitRepo(value: boolean): void {
+    this.gitRepo = value;
+  }
+  async claudeMdExists(): Promise<boolean> {
+    return false;
+  }
+  async gitHookExists(_name: HookName): Promise<boolean> {
+    return false;
+  }
+  async isGitRepo(): Promise<boolean> {
+    return this.gitRepo;
   }
 }
 
@@ -65,16 +89,28 @@ class InMemoryManifestStore implements ManifestStorePort {
 const presetCatalog = (...names: string[]) =>
   new StubCatalog(names.map((n) => Preset.of({ name: PresetName.of(n) })));
 
+const inputOf = (overrides: {
+  presetName: PresetName;
+  catalog: CatalogPort;
+  manifestStore: ManifestStorePort;
+  inspector?: ProjectInspectorPort;
+  projectRoot?: string;
+}) => ({
+  presetName: overrides.presetName,
+  projectRoot: overrides.projectRoot ?? '/tmp/p',
+  catalog: overrides.catalog,
+  manifestStore: overrides.manifestStore,
+  inspector: overrides.inspector ?? new StubInspector(true),
+});
+
 describe('initProject use case', () => {
   it('writes a manifest with the chosen preset and empty overrides', async () => {
     const catalog = presetCatalog('base', 'nestjs');
     const manifestStore = new InMemoryManifestStore();
 
-    const result = await initProject({
-      presetName: PresetName.of('nestjs'),
-      catalog,
-      manifestStore,
-    });
+    const result = await initProject(
+      inputOf({ presetName: PresetName.of('nestjs'), catalog, manifestStore }),
+    );
 
     expect(result.manifest.presetName.toString()).toBe('nestjs');
     expect(result.manifest.overrides).toEqual([]);
@@ -92,7 +128,7 @@ describe('initProject use case', () => {
     };
 
     await expect(
-      initProject({ presetName: PresetName.of('base'), catalog, manifestStore }),
+      initProject(inputOf({ presetName: PresetName.of('base'), catalog, manifestStore })),
     ).rejects.toThrow(ManifestAlreadyExistsError);
 
     // Does not overwrite
@@ -104,7 +140,7 @@ describe('initProject use case', () => {
     const manifestStore = new InMemoryManifestStore();
 
     await expect(
-      initProject({ presetName: PresetName.of('nope'), catalog, manifestStore }),
+      initProject(inputOf({ presetName: PresetName.of('nope'), catalog, manifestStore })),
     ).rejects.toThrow(PresetNotFoundError);
 
     expect(manifestStore.writeCalls).toBe(0);
@@ -122,7 +158,7 @@ describe('initProject use case', () => {
     };
 
     await expect(
-      initProject({ presetName: PresetName.of('nope'), catalog, manifestStore }),
+      initProject(inputOf({ presetName: PresetName.of('nope'), catalog, manifestStore })),
     ).rejects.toThrow(ManifestAlreadyExistsError);
   });
 
@@ -130,12 +166,84 @@ describe('initProject use case', () => {
     const catalog = presetCatalog('base', 'nestjs', 'react-native');
     const manifestStore = new InMemoryManifestStore();
 
-    await initProject({
-      presetName: PresetName.of('react-native'),
-      catalog,
-      manifestStore,
-    });
+    await initProject(
+      inputOf({ presetName: PresetName.of('react-native'), catalog, manifestStore }),
+    );
 
     expect(manifestStore.current?.presetName.toString()).toBe('react-native');
+  });
+
+  describe('git repo guard', () => {
+    it('throws NotAGitRepoError when the project root is not a git working tree', async () => {
+      const catalog = presetCatalog('base');
+      const manifestStore = new InMemoryManifestStore();
+      const inspector = new StubInspector(false);
+
+      await expect(
+        initProject(
+          inputOf({
+            presetName: PresetName.of('base'),
+            projectRoot: '/tmp/not-a-repo',
+            catalog,
+            manifestStore,
+            inspector,
+          }),
+        ),
+      ).rejects.toThrow(NotAGitRepoError);
+
+      // Manifest never written.
+      expect(manifestStore.writeCalls).toBe(0);
+      expect(manifestStore.current).toBeNull();
+    });
+
+    it('attaches the projectRoot to NotAGitRepoError so callers can name it', async () => {
+      const catalog = presetCatalog('base');
+      const manifestStore = new InMemoryManifestStore();
+      const inspector = new StubInspector(false);
+
+      try {
+        await initProject(
+          inputOf({
+            presetName: PresetName.of('base'),
+            projectRoot: '/tmp/some-folder',
+            catalog,
+            manifestStore,
+            inspector,
+          }),
+        );
+        throw new Error('expected initProject to throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(NotAGitRepoError);
+        if (err instanceof NotAGitRepoError) {
+          expect(err.projectRoot).toBe('/tmp/some-folder');
+          expect(err.code).toBe('NOT_A_GIT_REPO');
+        }
+      }
+    });
+
+    it('runs the git-repo check before any other validation', async () => {
+      // If the manifest already exists AND the preset is missing AND the
+      // project is not a repo, NotAGitRepoError wins — there's no point
+      // negotiating downstream conditions if the fundamental precondition
+      // (a working tree) is missing.
+      const catalog = presetCatalog('base');
+      const manifestStore = new InMemoryManifestStore();
+      manifestStore.current = {
+        presetName: PresetName.of('base'),
+        overrides: [],
+      };
+      const inspector = new StubInspector(false);
+
+      await expect(
+        initProject(
+          inputOf({
+            presetName: PresetName.of('nope'),
+            catalog,
+            manifestStore,
+            inspector,
+          }),
+        ),
+      ).rejects.toThrow(NotAGitRepoError);
+    });
   });
 });

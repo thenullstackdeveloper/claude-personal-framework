@@ -1,9 +1,19 @@
+import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ManifestAlreadyExistsError, PresetNotFoundError } from '@claude-fw/core';
+import { ManifestAlreadyExistsError, NotAGitRepoError, PresetNotFoundError } from '@claude-fw/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { formatInitReport, formatInitReportJson, runInit } from './init.command.js';
+
+const gitInit = (cwd: string): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const child = spawn('git', ['init', '-q'], { cwd });
+    child.on('error', reject);
+    child.on('close', (code) =>
+      code === 0 ? resolve() : reject(new Error(`git init failed (exit ${code})`)),
+    );
+  });
 
 describe('runInit (CLI command)', () => {
   let framework: string;
@@ -12,6 +22,10 @@ describe('runInit (CLI command)', () => {
   beforeEach(async () => {
     framework = await mkdtemp(join(tmpdir(), 'cfw-init-fw-'));
     project = await mkdtemp(join(tmpdir(), 'cfw-init-proj-'));
+    // initProject refuses to write unless the project root is a git
+    // working tree (CLAUDEPERS-13). The CLI tests model the canonical
+    // happy path, so every project tmpdir starts as a fresh repo.
+    await gitInit(project);
   });
 
   afterEach(async () => {
@@ -58,6 +72,19 @@ describe('runInit (CLI command)', () => {
 
     // No partial manifest left behind
     await expect(readFile(join(project, '.claude-fw.yaml'), 'utf-8')).rejects.toThrow();
+  });
+
+  it('fails with NotAGitRepoError when the project tmpdir is not a git repo', async () => {
+    await seedPreset('base');
+    const nonGit = await mkdtemp(join(tmpdir(), 'cfw-init-no-git-'));
+    try {
+      await expect(
+        runInit({ frameworkRoot: framework, projectRoot: nonGit, presetName: 'base' }),
+      ).rejects.toThrow(NotAGitRepoError);
+      await expect(readFile(join(nonGit, '.claude-fw.yaml'), 'utf-8')).rejects.toThrow();
+    } finally {
+      await rm(nonGit, { recursive: true, force: true });
+    }
   });
 });
 
