@@ -45,7 +45,11 @@ export function SetupForm(props: SetupFormProps) {
   const busy = installing || loadingCatalog || checkingStatus || initializing;
   const hasFramework = frameworkRoot.trim() !== '';
   const hasProject = projectRoot.trim() !== '';
-  const canLoad = !busy && hasFramework;
+  // Load catalog always works once the built-in is wired (CLAUDEPERS-25):
+  // when the framework field is empty, only the embedded source is used.
+  // Install/Status still gate on hasFramework because they need a known
+  // catalog identity until the UI redesign (CLAUDEPERS-20) lands.
+  const canLoad = !busy;
 
   // Initialize mode kicks in when the project is well-defined as "not a
   // project yet" — the detection ran and reported isProject=false.

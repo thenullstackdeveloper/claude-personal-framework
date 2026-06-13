@@ -1,5 +1,20 @@
+use include_dir::{Dir, include_dir};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::process::Command;
+use std::sync::OnceLock;
+
+/// The catalog dump produced by `build.rs` (presets/agents/skills/commands/
+/// instructions/git-hooks). Embedded at compile time so the desktop app
+/// ships with a working catalog out of the box (CLAUDEPERS-25).
+static BUILTIN_CATALOG: Dir<'_> = include_dir!("$OUT_DIR/builtin-catalog");
+
+/// Stable hash of the embedded catalog contents, computed by `build.rs`.
+/// Used as the cache directory suffix so a new app build (with a new hash)
+/// transparently invalidates the previous extraction.
+const BUILTIN_CATALOG_HASH: &str = env!("BUILTIN_CATALOG_HASH");
+
+static BUILTIN_CATALOG_PATH: OnceLock<PathBuf> = OnceLock::new();
 
 /// Structured error surfaced to the frontend instead of a plain string.
 /// `code` mirrors error codes the CLI emits on stdout when `--json` is set
@@ -101,11 +116,78 @@ fn cli_path() -> String {
     })
 }
 
+/// Extracts the embedded catalog to `$XDG_CACHE_HOME/cfw/builtin-<hash>/`
+/// the first time it is needed and returns the path. On subsequent calls
+/// (within the same process) the cached `OnceLock` value is returned without
+/// hitting disk.
+///
+/// Older `builtin-*` sibling directories are best-effort purged on every
+/// fresh extraction so old app versions don't leave stale caches behind.
+/// The current extraction's path is preserved (idempotency: re-running the
+/// extractor against an already-populated target is a no-op for the user).
+fn builtin_catalog_path() -> Result<PathBuf, CliError> {
+    if let Some(p) = BUILTIN_CATALOG_PATH.get() {
+        return Ok(p.clone());
+    }
+    let extracted = extract_builtin_catalog()?;
+    let _ = BUILTIN_CATALOG_PATH.set(extracted.clone());
+    Ok(extracted)
+}
+
+fn extract_builtin_catalog() -> Result<PathBuf, CliError> {
+    let cache_root = dirs::cache_dir().ok_or_else(|| {
+        CliError::failure("Could not determine the user cache directory".to_string())
+    })?;
+    let cfw_root = cache_root.join("cfw");
+    let target = cfw_root.join(format!("builtin-{}", BUILTIN_CATALOG_HASH));
+
+    // Best-effort purge of older builtin-* siblings. Failure is silent —
+    // a leftover directory is annoying but not a correctness problem.
+    if let Ok(entries) = std::fs::read_dir(&cfw_root) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.starts_with("builtin-") && entry.path() != target {
+                let _ = std::fs::remove_dir_all(entry.path());
+            }
+        }
+    }
+
+    if target.exists() {
+        return Ok(target);
+    }
+
+    std::fs::create_dir_all(&target).map_err(|e| {
+        CliError::failure(format!(
+            "Failed to create builtin catalog cache dir at {}: {}",
+            target.display(),
+            e
+        ))
+    })?;
+    BUILTIN_CATALOG.extract(&target).map_err(|e| {
+        CliError::failure(format!(
+            "Failed to extract embedded catalog into {}: {}",
+            target.display(),
+            e
+        ))
+    })?;
+    Ok(target)
+}
+
 fn run_cli(args: &[&str]) -> Result<String, CliError> {
+    let builtin = builtin_catalog_path()?;
+    let builtin_str = builtin.to_string_lossy().into_owned();
     let cli = cli_path();
+    // Inject the built-in catalog as the lowest-precedence source. The CLI
+    // composition root resolves precedence env > --catalog-folder > builtin,
+    // so user-passed catalog folders still win on collisions.
+    let mut full_args: Vec<&str> = Vec::with_capacity(args.len() + 2);
+    full_args.push("--catalog-folder");
+    full_args.push(&builtin_str);
+    full_args.extend_from_slice(args);
+
     let output = Command::new("node")
         .arg(&cli)
-        .args(args)
+        .args(&full_args)
         .output()
         .map_err(|e| CliError::failure(format!("Failed to spawn node {}: {}", cli, e)))?;
 
