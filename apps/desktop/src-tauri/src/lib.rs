@@ -16,6 +16,11 @@ pub struct CliError {
     /// frontend uses it to name the offending hook in the take-over banner.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hook_name: Option<String>,
+    /// Populated only when `code == "NOT_A_GIT_REPO"`. The frontend modal
+    /// uses it to name the folder in the prompt copy without parsing the
+    /// message string.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_root: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -29,6 +34,7 @@ impl CliError {
             code: "CLI_FAILURE".to_string(),
             message: message.into(),
             hook_name: None,
+            project_root: None,
         }
     }
 }
@@ -244,6 +250,33 @@ struct StatusReport {
     instructions: StatusSingleton,
 }
 
+/// Runs `git init -q` in the given path so a subsequent `initialize`
+/// call no longer trips `NotAGitRepoError`. Idempotent at the git level
+/// (re-running on an already-initialised repo is a no-op for the user).
+/// Spawned directly here instead of going through the CLI because (a)
+/// the operation is trivial, (b) there's no engine logic to share, and
+/// (c) we save a node process per click.
+#[tauri::command]
+fn ensure_git_repo(path: String) -> Result<(), CliError> {
+    let output = Command::new("git")
+        .args(["init", "-q"])
+        .current_dir(&path)
+        .output()
+        .map_err(|e| CliError::failure(format!("Failed to spawn git init at {}: {}", path, e)))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let detail = stderr.trim();
+        let message = if detail.is_empty() {
+            format!("git init at {} exited with status {}", path, output.status)
+        } else {
+            format!("git init at {} failed: {}", path, detail)
+        };
+        return Err(CliError::failure(message));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn status(framework_root: String, project_root: String) -> Result<StatusReport, CliError> {
     let output = run_cli(&[
@@ -267,7 +300,8 @@ pub fn run() {
             install,
             detect_path,
             initialize,
-            status
+            status,
+            ensure_git_repo
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

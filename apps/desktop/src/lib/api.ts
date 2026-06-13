@@ -12,17 +12,22 @@ export type CliError = {
   readonly message: string;
   /** Populated only when `code === 'UNMANAGED_GIT_HOOK'`. */
   readonly hookName?: string;
+  /** Populated only when `code === 'NOT_A_GIT_REPO'`. */
+  readonly projectRoot?: string;
 };
 
 export const toCliError = (e: unknown): CliError => {
   if (e && typeof e === 'object' && 'code' in e && 'message' in e) {
-    const { code, message, hookName } = e as {
+    const { code, message, hookName, projectRoot } = e as {
       code: unknown;
       message: unknown;
       hookName?: unknown;
+      projectRoot?: unknown;
     };
     if (typeof code === 'string' && typeof message === 'string') {
-      return typeof hookName === 'string' ? { code, message, hookName } : { code, message };
+      const base: CliError = { code, message };
+      const withHook = typeof hookName === 'string' ? { ...base, hookName } : base;
+      return typeof projectRoot === 'string' ? { ...withHook, projectRoot } : withHook;
     }
   }
   if (typeof e === 'string') return { code: 'CLI_FAILURE', message: e };
@@ -133,4 +138,8 @@ export const initialize = (
   presetName: string,
 ): Promise<InitReport> => {
   return invoke<InitReport>('initialize', { frameworkRoot, projectRoot, presetName });
+};
+
+export const ensureGitRepo = (path: string): Promise<void> => {
+  return invoke<void>('ensure_git_repo', { path });
 };

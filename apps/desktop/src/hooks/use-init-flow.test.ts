@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { confirm } from '@tauri-apps/plugin-dialog';
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,7 +9,12 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  confirm: vi.fn(),
+}));
+
 const mockedInvoke = vi.mocked(invoke);
+const mockedConfirm = vi.mocked(confirm);
 
 const successResponse = {
   projectRoot: '/proj',
@@ -19,6 +25,7 @@ const successResponse = {
 describe('useInitFlow', () => {
   beforeEach(() => {
     mockedInvoke.mockReset();
+    mockedConfirm.mockReset();
   });
 
   it('initial outcome is idle with no init in flight and no auto-trigger on mount', () => {
@@ -141,6 +148,101 @@ describe('useInitFlow', () => {
       result.current.dismiss();
     });
     expect(result.current.outcome).toEqual({ status: 'idle' });
+  });
+
+  describe('NOT_A_GIT_REPO take-over', () => {
+    const notAGitRepoError = {
+      code: 'NOT_A_GIT_REPO',
+      message: 'the folder at /proj is not a git repository',
+      projectRoot: '/proj',
+    };
+
+    it('runs git init and retries on confirm', async () => {
+      mockedConfirm.mockResolvedValueOnce(true);
+      // 1: initialize() rejects with NOT_A_GIT_REPO.
+      // 2: ensure_git_repo() resolves (void).
+      // 3: initialize() retry resolves with the success response.
+      mockedInvoke
+        .mockRejectedValueOnce(notAGitRepoError)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(successResponse);
+
+      const onSuccess = vi.fn();
+      const { result } = renderHook(() =>
+        useInitFlow({ frameworkRoot: '/fw', projectRoot: '/proj', onSuccess }),
+      );
+      await act(async () => {
+        await result.current.initialize('base');
+      });
+
+      expect(mockedConfirm).toHaveBeenCalledOnce();
+      expect(mockedInvoke).toHaveBeenNthCalledWith(2, 'ensure_git_repo', { path: '/proj' });
+      expect(result.current.outcome).toEqual({
+        status: 'success',
+        presetName: 'base',
+        manifestPath: '/proj/.claude-fw.yaml',
+      });
+      expect(onSuccess).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns to idle on cancel (no banner, no retry)', async () => {
+      mockedConfirm.mockResolvedValueOnce(false);
+      mockedInvoke.mockRejectedValueOnce(notAGitRepoError);
+
+      const onSuccess = vi.fn();
+      const { result } = renderHook(() =>
+        useInitFlow({ frameworkRoot: '/fw', projectRoot: '/proj', onSuccess }),
+      );
+      await act(async () => {
+        await result.current.initialize('base');
+      });
+
+      expect(mockedConfirm).toHaveBeenCalledOnce();
+      // Only the original initialize call — no ensure_git_repo, no retry.
+      expect(mockedInvoke).toHaveBeenCalledOnce();
+      expect(result.current.outcome).toEqual({ status: 'idle' });
+      expect(onSuccess).not.toHaveBeenCalled();
+    });
+
+    it('surfaces a retry failure as a regular error outcome', async () => {
+      mockedConfirm.mockResolvedValueOnce(true);
+      mockedInvoke
+        .mockRejectedValueOnce(notAGitRepoError)
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce({ code: 'CLI_FAILURE', message: 'second attempt blew up' });
+
+      const { result } = renderHook(() =>
+        useInitFlow({ frameworkRoot: '/fw', projectRoot: '/proj' }),
+      );
+      await act(async () => {
+        await result.current.initialize('base');
+      });
+
+      expect(result.current.outcome).toEqual({
+        status: 'error',
+        error: { code: 'CLI_FAILURE', message: 'second attempt blew up' },
+      });
+    });
+
+    it('falls back to the hook projectRoot when the error envelope omits it', async () => {
+      mockedConfirm.mockResolvedValueOnce(false);
+      mockedInvoke.mockRejectedValueOnce({
+        code: 'NOT_A_GIT_REPO',
+        message: 'no projectRoot here',
+      });
+
+      const { result } = renderHook(() =>
+        useInitFlow({ frameworkRoot: '/fw', projectRoot: '/fallback-proj' }),
+      );
+      await act(async () => {
+        await result.current.initialize('base');
+      });
+
+      expect(mockedConfirm).toHaveBeenCalledWith(
+        expect.stringContaining('/fallback-proj'),
+        expect.any(Object),
+      );
+    });
   });
 
   it('initialize() uses the latest paths after a rerender', async () => {
