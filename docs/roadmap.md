@@ -1,6 +1,6 @@
 # Roadmap
 
-Prioritized backlog as of 2026-06-07. Update it when priorities shift
+Prioritized backlog as of 2026-06-13. Update it when priorities shift
 or items ship — a stale roadmap is worse than no roadmap.
 
 Tiers reflect *when*, not *what*:
@@ -14,80 +14,7 @@ Tiers reflect *when*, not *what*:
 
 ## Now
 
-### 1 · Git hooks as a catalog artifact (`.githooks/`)
-
-The catalog gains a new artifact type, `git-hooks/`, with one file
-per hook. Native git hooks (zero deps, no Husky/commitlint), versioned
-through the catalog, materialized into the project's `.githooks/`
-directory at install time. Pairs naturally with the existing
-`commit-style` skill: the skill says *what* a good commit looks like,
-the hook *enforces* it.
-
-**Three concrete hooks to ship in the `base` preset**:
-
-- **`commit-msg`** — enforce Conventional Commits on the subject
-  line (pattern:
-  `^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9_.-]+\))?!?: .+`).
-  Lets `Merge`, `Revert`, `fixup!`, `squash!` through unchanged.
-  Validates format only; language stays a project convention.
-  Reference script: `~/Projects/shared-docs/conventional-commits-hook.md`.
-- **`pre-commit`** — run `pnpm lint` (biome check). Fast, blocks
-  formatting drift before it lands.
-- **`pre-push`** — run `pnpm -r test`. Slower (~2–5s) but catches
-  regressions before they hit the remote.
-
-**Engine design (to nail in the planning phase, open list)**:
-
-- New entity `GitHook { id, hookName, script, description }`. The
-  `hookName` is a closed enum of supported git hook names — at MVP
-  `commit-msg | pre-commit | pre-push`; extend by adding to the enum.
-- `Preset.gitHookIds: readonly GitHookId[]`. `resolveExtends`
-  accumulates + dedupes by id AND validates **no two hooks share the
-  same `hookName`** (otherwise ambiguous which one wins on disk).
-- Materialization location: `.githooks/<hookName>` in the project
-  root — **first artifact that lives outside `.claude/`**. The writer
-  must handle a second target directory.
-- Executable bit: `fs.chmod 0o755` after writing.
-- Activation of `core.hooksPath` (three options to debate during
-  planning):
-  - (a) writer spawns `git config core.hooksPath .githooks` after
-    install — most magical, but breaks the engine's
-    no-side-effects-beyond-write rule.
-  - (b) install report tells the user to run it once — least
-    magical, friction every clone.
-  - (c) writer reads `git config --get core.hooksPath` and sets it
-    only if unset — idempotent, no surprise overwrite. **My vote
-    to open debate**.
-- Drift tracking: content hash per hook, same pattern as
-  agents/skills/commands.
-- Lockfile shape: new `gitHooks: [{ id, hookName, contentHash }]`
-  section.
-- **UI**: new Card in `<CatalogView>` for "Git Hooks", one extra line
-  in the install report when hooks are written.
-
-**Proposed sub-phases (refine in planning, à la Bloque 2)**:
-
-- *1.1* — Engine: `GitHook` entity, `Preset.gitHookIds`,
-  `resolveExtends` with hookName-conflict detection, lockfile shape,
-  drift, parsers, tests.
-- *1.2* — Writer: `.githooks/<hookName>` with chmod + chosen
-  activation policy.
-- *1.3* — Three concrete hooks in `git-hooks/` (commit-msg,
-  pre-commit, pre-push).
-- *1.4* — `base` preset declares the three.
-- *1.5* — UI Card + install report line.
-
-- *Why now:* (a) `commit-style` already documents the convention but
-  enforcement lives outside the catalog — incoherent. (b) lint +
-  tests local enforcement is the same family of cross-cutting policy
-  as commit format; cheap to bundle once the new artifact type
-  exists. (c) Plinth and any future project on the `base` preset
-  gets all three for free.
-- *Cost:* high. New artifact type (first outside `.claude/`, first
-  with executable bit). ~1–2 days engine + content + UI. Plan with
-  the `hexagonal-architect` audit first, same as Bloque 2.
-
-### 2 · Polish the desktop UI
+### 1 · Polish the desktop UI
 
 Start by extracting `App.tsx` (~350 lines, four flows mixed) into
 custom hooks: `useInstallFlow`, `useStatusFlow`, `useInitFlow`,
@@ -208,7 +135,7 @@ error type + Rust command + UI modal) and earns its own session.
 - *Cost:* medium. Refactor itself is bounded (~1 day) plus
   whatever UX work the next sub-items end up justifying.
 
-### 3 · Presets for the remaining personal stacks (React Native, Vue 3, Laravel)
+### 2 · Presets for the remaining personal stacks (React Native, Vue 3, Laravel)
 
 With the catalog format finalized and the `nestjs` and
 `tauri-rust-react` presets already shipped (each with its own
@@ -232,7 +159,7 @@ stack-specific skills), three stacks remain on the personal radar:
   there's a concrete project that pulls for it — not all three at
   once on speculation.
 
-### 4 · Technical debt cleanup
+### 3 · Technical debt cleanup
 
 Items the architecture audit flagged as "monitor, don't act":
 
@@ -266,7 +193,7 @@ the Settings/Instructions singleton rows), successful install
 showing Settings + Instructions lines, take-over banner.
 
 - *Why next, not now:* better captured **after** the UI polish of
-  Now item 2 lands — otherwise the screenshots go stale immediately.
+  Now item 1 lands — otherwise the screenshots go stale immediately.
 - *Cost:* low — you capture, the README edit is trivial.
 
 ---
@@ -287,20 +214,27 @@ renumbered.
 | 4 · Refactor `jobs/` or `billing/` modules in Tubegist | You decide Tubegist itself needs the refactor. Calibration value alone has diminishing returns after the `users/` module. |
 | 5 · Recorded demo or blog post | The roadmap is mostly green and you want a public artifact of the project. |
 | 6 · Generated/shared types across Rust ↔ TS ↔ CLI (ts-rs / specta / CLI-published `.d.ts`) | A real drift bug bites (today: silent field drop), or a 3rd new command lands and the manual sync becomes the bottleneck. |
-| 7 · Preview of `.claude/CLAUDE.md` and `.claude/settings.json` in the desktop UI | You want to inspect installed content without leaving the app. Requires `tauri-plugin-fs` and a viewer component. Likely emerges as a sub-item under Now 2 (UI polish) once the monolith is broken. |
+| 7 · Preview of `.claude/CLAUDE.md` and `.claude/settings.json` in the desktop UI | You want to inspect installed content without leaving the app. Requires `tauri-plugin-fs` and a viewer component. Likely emerges as a sub-item under Now 1 (UI polish) once the monolith is broken. |
 | 8 · — | Promoted to Now item 1 on 2026-05-30. ID kept as a gap to preserve historical references in past commits. |
 | 9 · Per-stack testing rules skills (`react-native-testing-rules`, `nestjs-testing-rules`, etc.) | You start auditing a project with `hexagonal-test-reviewer` and need stack-specific guidance (RNTL + native module mocks, supertest + TestContainers, etc.). Mirror the pattern of `nestjs-hexagonal-patterns`. |
 | 10 · Calibrate `hexagonal-test-reviewer` agent | First live use of the agent on a real project surfaces gaps or false positives in the prompt. Same calibration cycle that closed the refactor agent. |
 | 11 · Promote `commit-style` to the CLAUDE.md install flow | The skill exists but each project's CLAUDE.md still needs the "no AI attribution / never commit without OK" rules redundantly. When item 13 (global bin install) ships, evaluate if `claude-fw install` should also patch / append project CLAUDE.md from the catalog. |
 | 12 · Surface frontmatter parse errors in `list`/`install` | A second catalog artifact silently ends up without description because of a YAML edge case (today: `: ` in plain scalar broke `hexagonal-test-reviewer` — commit `1f0ad0a`). Today `extractFrontmatterDescription` swallows parse errors and returns `''`, which is defensive but hard to diagnose. When it bites again, change the contract to emit a warning to stderr (or fail loudly in `--json`) when frontmatter exists but description is empty / unparseable. |
 | 14 · Calibrate `tauri-rust-react` catalog set | First live use of the preset on Angel's Plinth side project (Stream-Deck-style touch panel for sim inputs / telemetry — see memory `project_plinth`) surfaces real gaps or false advice in `rust-hexagonal-rules`, `tauri-patterns`, `react-hexagonal-patterns`, `zustand-patterns`, `framer-motion-patterns`. Same calibration cycle that closed `hexagonal-refactor-nestjs` after the Tubegist sweep — not anticipatory. |
-| 13 · Global bin install for the CLI | Now items 1, 2, 3 and 4 closed. Ship `claude-fw` as a globally invokable command (`pnpm i -g` from the repo, or publishing to a scoped registry). Deferred because installing it globally before the UI is polished, the catalog has more stacks, and the engine debt is cleared exports an unfinished feel to anyone who tries it from outside. ≈ 1 h once unblocked. |
+| 13 · Global bin install for the CLI | Now items 1, 2 and 3 closed. Ship `claude-fw` as a globally invokable command (`pnpm i -g` from the repo, or publishing to a scoped registry). Deferred because installing it globally before the UI is polished, the catalog has more stacks, and the engine debt is cleared exports an unfinished feel to anyone who tries it from outside. ≈ 1 h once unblocked. |
 | 15 · Rethink framework-root UX (built-in catalog + user catalogs) | Today "Framework root" forces you to point at a clone of this repo; if the path is wrong, the dropdown fills with a stale catalog and the only feedback is the silent absence of the expected preset (Angel hit this looking for `tauri-rust-react` on 2026-06-02). **Angel's base hypothesis to open the debate (NOT a decision)**: the app should ship with a reasonably varied built-in catalog, and a Settings section should let you register one or more "local catalog folders" for overrides / personal agents. The mental model shifts from "point at the repo" to "the app brings the catalog; you add your own". Tradeoffs to debate when this is taken up: bundling the catalog inside the binary vs. downloading on demand (signed/versioned), how the built-in is updated without a reinstall, precedence (user > built-in), what happens with the dev flow of this very repo (which DOES want to edit the catalog in place), and whether this should precede or follow the global bin install (Deferred 13) — they are entangled. Trigger: a second potential user appears (someone who isn't you), or the catalog grows to ≥ 4 stacks and "clone the repo and point here" stops being reasonable. |
-| 16 · Onboarding git hooks on fresh clones | Git limitation: `core.hooksPath` is repo-local config (`.git/config`) and is NOT inherited on clone. Once Now item 1 (git hooks as catalog artifact) ships, a fresh clone of any repo using the framework — or a new collaborator joining the project — will NOT have hooks active until they run `claude-fw install`. The install-report line ("Git config: set core.hooksPath = .githooks") mitigates the first install, but the first time someone clones and forgets to run install, the hooks silently don't fire and the catalog looks broken. Surfaced by the `hexagonal-architect` during the planning of `CLAUDEPERS-1` as a known risk explicitly outside the MVP scope. Three options to debate when triggered: (a) a generated block in the installed `CLAUDE.md` with the exact command to run; (b) a `bootstrap.sh` script shipped by the catalog that activates hooks plus whatever else is needed; (c) Claude Code-level detection of `.githooks/` without `core.hooksPath` pointing at it. Trigger: the first time the repo is cloned on another machine and the hooks don't fire, or a collaborator joins the project. |
+| 16 · Onboarding git hooks on fresh clones | Git limitation: `core.hooksPath` is repo-local config (`.git/config`) and is NOT inherited on clone. Now that git hooks ship as a catalog artifact (Recently shipped: `CLAUDEPERS-1`), a fresh clone of any repo using the framework — or a new collaborator joining the project — will NOT have hooks active until they run `claude-fw install`. The install-report line ("Git config: set core.hooksPath = .githooks") mitigates the first install, but the first time someone clones and forgets to run install, the hooks silently don't fire and the catalog looks broken. Surfaced by the `hexagonal-architect` during the planning of `CLAUDEPERS-1` as a known risk explicitly outside the MVP scope. Three options to debate when triggered: (a) a generated block in the installed `CLAUDE.md` with the exact command to run; (b) a `bootstrap.sh` script shipped by the catalog that activates hooks plus whatever else is needed; (c) Claude Code-level detection of `.githooks/` without `core.hooksPath` pointing at it. Trigger: the first time the repo is cloned on another machine and the hooks don't fire, or a collaborator joins the project. |
 
 ---
 
 ## Recently shipped
+
+- **Git hooks as a catalog artifact (Now 1, `CLAUDEPERS-1` umbrella)** — first artifact type that lives outside `.claude/` and first with an executable bit. Shipped across 5 planned sub-phases + 3 smoke-driven fixes:
+  - **1.A–1.E** (`b41e576` → `d3d206a`): engine domain (`GitHook`, closed `HookName` enum, `Preset.gitHookNames`), `resolveExtends` accumulation + dedupe (no `ConflictingHookNameError` needed — id === hookName), Familia A drift, new `GitConfigPort` separated from `WriterPort`, real adapters with `chmod 0o755` and `ChildProcessGitConfig`, lockfile gains its own `gitHooks` section, YAML field `git-hooks:` (decision closed in post-1.D review), CLI report + Rust IPC + desktop Card. Three concrete hooks in `base`: `commit-msg` (Conventional Commits), `pre-commit` (`pnpm lint`), `pre-push` (`pnpm -r test`).
+  - `9f4dca5` fix(desktop) `CLAUDEPERS-11`: smoke surfaced that the success banner counted git-hooks toward "N artifacts written to .claude/" — split into separate counters per destination.
+  - `646ce5c` refactor(core): renamed `FsProjectInspector` to `LocalProjectInspector` to honestly cover the subprocess method added next.
+  - `4140806` → `55ffe64` `CLAUDEPERS-12`: install detects non-git project via `isGitRepo()` and skips `core.hooksPath` gracefully. Hooks still land in `.githooks/`; report names the skip and what to do.
+  - `6223c6c` → `88d3171` `CLAUDEPERS-13`: init detects non-git project and emits `NotAGitRepoError`. CLI surfaces it (`--init-git` flag automates the fix); desktop intercepts with a native confirm modal that calls `ensure_git_repo` and retries `initialize` on accept.
 
 - **Settings (with hooks) + per-stack `CLAUDE.md` as catalog artifacts** — closed across three commits:
   - `29bc33a` engine: `Settings` wraps `Permissions + Hooks`; lockfile + drift carry settings hash.
