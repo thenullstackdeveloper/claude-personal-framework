@@ -11,7 +11,7 @@ const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
   return err instanceof Error && 'code' in err;
 };
 
-export class FsProjectInspector implements ProjectInspectorPort {
+export class LocalProjectInspector implements ProjectInspectorPort {
   constructor(public readonly projectRoot: string) {}
 
   async claudeMdExists(): Promise<boolean> {

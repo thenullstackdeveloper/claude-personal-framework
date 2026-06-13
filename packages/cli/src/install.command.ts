@@ -3,7 +3,7 @@ import {
   ChildProcessGitConfig,
   ClaudeWriter,
   FsManifestStore,
-  FsProjectInspector,
+  LocalProjectInspector,
   LockfileStore,
   install,
 } from '@claude-fw/core';
@@ -37,7 +37,7 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
   const catalog = new CatalogReader(args.frameworkRoot);
   const writer = new ClaudeWriter(args.projectRoot);
   const lockfileStore = new LockfileStore(args.projectRoot);
-  const inspector = new FsProjectInspector(args.projectRoot);
+  const inspector = new LocalProjectInspector(args.projectRoot);
   const gitConfig = new ChildProcessGitConfig(args.projectRoot);
 
   const result = await install({
