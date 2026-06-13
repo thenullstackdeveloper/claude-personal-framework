@@ -1,7 +1,7 @@
-import { CatalogReader, FsManifestStore, LockfileStore, checkStatus } from '@claude-fw/core';
+import { type CatalogPort, FsManifestStore, LockfileStore, checkStatus } from '@claude-fw/core';
 
 export type StatusCommandArgs = {
-  readonly frameworkRoot: string;
+  readonly catalog: CatalogPort;
   readonly projectRoot: string;
 };
 
@@ -43,13 +43,12 @@ export const runStatus = async (args: StatusCommandArgs): Promise<StatusCommandR
     );
   }
 
-  const catalog = new CatalogReader(args.frameworkRoot);
   const lockfileStore = new LockfileStore(args.projectRoot);
 
   const result = await checkStatus({
     manifest,
+    catalog: args.catalog,
     projectPath: args.projectRoot,
-    catalog,
     lockfileStore,
   });
 

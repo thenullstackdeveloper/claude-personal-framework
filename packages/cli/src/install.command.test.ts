@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { FsCatalogReader } from '@claude-fw/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { formatInstallReport, formatInstallReportJson, runInstall } from './install.command.js';
 
@@ -43,7 +44,10 @@ describe('runInstall (CLI command)', () => {
     });
     await seedProjectManifest('preset: base');
 
-    const report = await runInstall({ frameworkRoot: framework, projectRoot: project });
+    const report = await runInstall({
+      catalog: new FsCatalogReader(framework),
+      projectRoot: project,
+    });
 
     expect(report.presetName).toBe('base');
     expect(report.agents).toEqual(['docs-manager']);
@@ -63,7 +67,10 @@ overrides:
   - disable: agent:drop
 `);
 
-    const report = await runInstall({ frameworkRoot: framework, projectRoot: project });
+    const report = await runInstall({
+      catalog: new FsCatalogReader(framework),
+      projectRoot: project,
+    });
     expect(report.agents).toEqual(['keep']);
   });
 
@@ -80,16 +87,16 @@ overrides:
       patched content
 `);
 
-    await runInstall({ frameworkRoot: framework, projectRoot: project });
+    await runInstall({ catalog: new FsCatalogReader(framework), projectRoot: project });
 
     const written = await readFile(join(project, '.claude', 'agents', 'docs-manager.md'), 'utf-8');
     expect(written.trim()).toBe('patched content');
   });
 
   it('throws a useful error when the manifest is missing', async () => {
-    await expect(runInstall({ frameworkRoot: framework, projectRoot: project })).rejects.toThrow(
-      /No \.claude-fw\.yaml found.+claude-fw init/,
-    );
+    await expect(
+      runInstall({ catalog: new FsCatalogReader(framework), projectRoot: project }),
+    ).rejects.toThrow(/No \.claude-fw\.yaml found.+claude-fw init/);
   });
 });
 

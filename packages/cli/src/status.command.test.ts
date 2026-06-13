@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { FsCatalogReader } from '@claude-fw/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { runInstall } from './install.command.js';
 import { formatStatusReport, formatStatusReportJson, runStatus } from './status.command.js';
@@ -34,7 +35,10 @@ describe('runStatus (CLI command)', () => {
     await seed('agents/a.md', 'body');
     await seedManifest('preset: base');
 
-    const report = await runStatus({ frameworkRoot: framework, projectRoot: project });
+    const report = await runStatus({
+      catalog: new FsCatalogReader(framework),
+      projectRoot: project,
+    });
 
     expect(report.hasLockfile).toBe(false);
     expect(report.added.map((a) => a.id)).toEqual(['a']);
@@ -47,8 +51,11 @@ describe('runStatus (CLI command)', () => {
     await seed('agents/a.md', 'body');
     await seedManifest('preset: base');
 
-    await runInstall({ frameworkRoot: framework, projectRoot: project });
-    const report = await runStatus({ frameworkRoot: framework, projectRoot: project });
+    await runInstall({ catalog: new FsCatalogReader(framework), projectRoot: project });
+    const report = await runStatus({
+      catalog: new FsCatalogReader(framework),
+      projectRoot: project,
+    });
 
     expect(report.hasLockfile).toBe(true);
     expect(report.added).toEqual([]);
@@ -62,10 +69,13 @@ describe('runStatus (CLI command)', () => {
     await seed('agents/a.md', 'original');
     await seedManifest('preset: base');
 
-    await runInstall({ frameworkRoot: framework, projectRoot: project });
+    await runInstall({ catalog: new FsCatalogReader(framework), projectRoot: project });
     await seed('agents/a.md', 'modified');
 
-    const report = await runStatus({ frameworkRoot: framework, projectRoot: project });
+    const report = await runStatus({
+      catalog: new FsCatalogReader(framework),
+      projectRoot: project,
+    });
     expect(report.updated.map((u) => u.id)).toEqual(['a']);
     const update = report.updated[0];
     if (!update) throw new Error('expected one update');
@@ -78,10 +88,13 @@ describe('runStatus (CLI command)', () => {
     await seed('agents/b.md', 'y');
     await seedManifest('preset: base');
 
-    await runInstall({ frameworkRoot: framework, projectRoot: project });
+    await runInstall({ catalog: new FsCatalogReader(framework), projectRoot: project });
     await seed('presets/base.yaml', 'agents: [a]');
 
-    const report = await runStatus({ frameworkRoot: framework, projectRoot: project });
+    const report = await runStatus({
+      catalog: new FsCatalogReader(framework),
+      projectRoot: project,
+    });
     expect(report.removed.map((r) => r.id)).toEqual(['b']);
   });
 
@@ -90,11 +103,11 @@ describe('runStatus (CLI command)', () => {
     await seed('agents/a.md', 'body');
     await seedManifest('preset: base');
 
-    await runStatus({ frameworkRoot: framework, projectRoot: project });
+    await runStatus({ catalog: new FsCatalogReader(framework), projectRoot: project });
 
     // No lockfile should have been created
     await expect(
-      runStatus({ frameworkRoot: framework, projectRoot: project }),
+      runStatus({ catalog: new FsCatalogReader(framework), projectRoot: project }),
     ).resolves.toMatchObject({ hasLockfile: false });
   });
 });

@@ -1,7 +1,7 @@
-import { CatalogReader, listCatalog } from '@claude-fw/core';
+import { type CatalogPort, listCatalog } from '@claude-fw/core';
 
 export type ListCommandArgs = {
-  readonly frameworkRoot: string;
+  readonly catalog: CatalogPort;
 };
 
 export type ListCommandPreset = {
@@ -33,8 +33,7 @@ export type ListCommandReport = {
 };
 
 export const runList = async (args: ListCommandArgs): Promise<ListCommandReport> => {
-  const catalog = new CatalogReader(args.frameworkRoot);
-  const result = await listCatalog({ catalog });
+  const result = await listCatalog({ catalog: args.catalog });
 
   return {
     presets: result.presets.map((p) => ({

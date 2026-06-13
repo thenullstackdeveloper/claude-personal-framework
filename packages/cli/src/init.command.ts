@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import {
-  CatalogReader,
+  type CatalogPort,
   FsManifestStore,
   LocalProjectInspector,
   NotAGitRepoError,
@@ -12,7 +12,7 @@ import {
 const MANIFEST_FILENAME = '.claude-fw.yaml';
 
 export type InitCommandArgs = {
-  readonly frameworkRoot: string;
+  readonly catalog: CatalogPort;
   readonly projectRoot: string;
   readonly presetName: string;
   /**
@@ -32,7 +32,6 @@ export type InitCommandReport = {
 };
 
 export const runInit = async (args: InitCommandArgs): Promise<InitCommandReport> => {
-  const catalog = new CatalogReader(args.frameworkRoot);
   const manifestStore = new FsManifestStore(args.projectRoot);
   const inspector = new LocalProjectInspector(args.projectRoot);
 
@@ -40,7 +39,7 @@ export const runInit = async (args: InitCommandArgs): Promise<InitCommandReport>
     initProject({
       presetName: PresetName.of(args.presetName),
       projectRoot: args.projectRoot,
-      catalog,
+      catalog: args.catalog,
       manifestStore,
       inspector,
     });

@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { FsCatalogReader } from '@claude-fw/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { formatListReport, formatListReportJson, runList } from './list.command.js';
 
@@ -22,7 +23,7 @@ describe('runList (CLI command)', () => {
   };
 
   it('returns an empty report when the framework is empty', async () => {
-    const report = await runList({ frameworkRoot: framework });
+    const report = await runList({ catalog: new FsCatalogReader(framework) });
     expect(report.presets).toEqual([]);
     expect(report.agents).toEqual([]);
     expect(report.skills).toEqual([]);
@@ -34,7 +35,7 @@ describe('runList (CLI command)', () => {
     await seed('presets/base.yaml', 'agents: [docs-manager]');
     await seed('presets/nestjs.yaml', 'extends: base\nagents: [hex-refactor]\nskills: [nest-hex]');
 
-    const report = await runList({ frameworkRoot: framework });
+    const report = await runList({ catalog: new FsCatalogReader(framework) });
 
     const byName = Object.fromEntries(report.presets.map((p) => [p.name, p]));
     expect(byName['base']?.agents).toEqual(['docs-manager']);
@@ -51,7 +52,7 @@ describe('runList (CLI command)', () => {
     await seed('skills/nest-hex.md', '---\ndescription: NestJS hex.\n---\nbody');
     await seed('commands/build.md', '---\ndescription: Build.\n---\nbody');
 
-    const report = await runList({ frameworkRoot: framework });
+    const report = await runList({ catalog: new FsCatalogReader(framework) });
 
     expect(report.agents).toEqual([{ id: 'docs-manager', description: 'Manages docs.' }]);
     expect(report.skills).toEqual([{ id: 'nest-hex', description: 'NestJS hex.' }]);

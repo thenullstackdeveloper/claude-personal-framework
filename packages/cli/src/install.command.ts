@@ -1,5 +1,5 @@
 import {
-  CatalogReader,
+  type CatalogPort,
   ChildProcessGitConfig,
   ClaudeWriter,
   FsManifestStore,
@@ -9,7 +9,7 @@ import {
 } from '@claude-fw/core';
 
 export type InstallCommandArgs = {
-  readonly frameworkRoot: string;
+  readonly catalog: CatalogPort;
   readonly projectRoot: string;
 };
 
@@ -35,7 +35,6 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
     );
   }
 
-  const catalog = new CatalogReader(args.frameworkRoot);
   const writer = new ClaudeWriter(args.projectRoot);
   const lockfileStore = new LockfileStore(args.projectRoot);
   const inspector = new LocalProjectInspector(args.projectRoot);
@@ -44,7 +43,7 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
   const result = await install({
     manifest,
     projectPath: args.projectRoot,
-    catalog,
+    catalog: args.catalog,
     writer,
     lockfileStore,
     inspector,

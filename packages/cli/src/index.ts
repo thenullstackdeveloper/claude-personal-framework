@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { buildCatalogPort } from './build-catalog.js';
 import {
   type DetectCommandReport,
   formatDetectReport,
@@ -14,6 +15,8 @@ import { formatStatusReport, formatStatusReportJson, runStatus } from './status.
 type ParsedArgs = {
   readonly command: string;
   readonly framework: string | undefined;
+  readonly catalogFolders: readonly string[];
+  readonly noBuiltin: boolean;
   readonly project: string | undefined;
   readonly path: string | undefined;
   readonly preset: string | undefined;
@@ -24,6 +27,8 @@ type ParsedArgs = {
 const parseArgs = (argv: readonly string[]): ParsedArgs => {
   let command = '';
   let framework: string | undefined;
+  const catalogFolders: string[] = [];
+  let noBuiltin = false;
   let project: string | undefined;
   let path: string | undefined;
   let preset: string | undefined;
@@ -35,6 +40,11 @@ const parseArgs = (argv: readonly string[]): ParsedArgs => {
     if (!arg) continue;
     if (arg === '--framework') {
       framework = argv[++i];
+    } else if (arg === '--catalog-folder') {
+      const next = argv[++i];
+      if (next) catalogFolders.push(next);
+    } else if (arg === '--no-builtin') {
+      noBuiltin = true;
     } else if (arg === '--project') {
       project = argv[++i];
     } else if (arg === '--path') {
@@ -50,7 +60,7 @@ const parseArgs = (argv: readonly string[]): ParsedArgs => {
     }
   }
 
-  return { command, framework, project, path, preset, json, initGit };
+  return { command, framework, catalogFolders, noBuiltin, project, path, preset, json, initGit };
 };
 
 const printHelp = (): void => {
@@ -65,8 +75,14 @@ const printHelp = (): void => {
     '  detect      Report whether a path is a framework root and/or a project root',
     '  help        Show this help',
     '',
-    'Options:',
-    '  --framework <path>   Framework catalog root (default: $CLAUDE_FW_ROOT or cwd)',
+    'Catalog sources (precedence: env > --catalog-folder > --framework > builtin):',
+    '  --catalog-folder <path>  Add a folder catalog source. Repeatable. Earlier wins on collision.',
+    '  --no-builtin             Exclude the embedded built-in catalog from the aggregation.',
+    '  --framework <path>       [deprecated] Single folder source. Prefer --catalog-folder.',
+    '                           Falls back to $CLAUDE_FW_ROOT or cwd when no flag is given.',
+    '  $CFW_CATALOG_PATH        Env var override; takes highest precedence when set.',
+    '',
+    'Other options:',
     '  --project <path>     Project root (default: cwd) — used by init, install, status',
     '  --preset <name>      Preset to use — required by init',
     '  --path <path>        Path to inspect — only used by detect',
@@ -78,19 +94,38 @@ const printHelp = (): void => {
   process.stdout.write(`${lines.join('\n')}\n`);
 };
 
-const resolveFrameworkRoot = (override: string | undefined): string => {
-  return override ?? process.env['CLAUDE_FW_ROOT'] ?? process.cwd();
+const resolveFrameworkFlag = (override: string | undefined): string | undefined => {
+  if (override) return override;
+  const legacy = process.env['CLAUDE_FW_ROOT'];
+  if (legacy && legacy.length > 0) return legacy;
+  return undefined;
 };
 
 const main = async (): Promise<void> => {
-  const { command, framework, project, path, preset, json, initGit } = parseArgs(
-    process.argv.slice(2),
-  );
+  const parsed = parseArgs(process.argv.slice(2));
+  const { command, project, path, preset, json, initGit } = parsed;
 
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     printHelp();
     return;
   }
+
+  if (command === 'detect') {
+    const report: DetectCommandReport = await runDetect({ path: path ?? process.cwd() });
+    const output = json ? formatDetectReportJson(report) : formatDetectReport(report);
+    process.stdout.write(`${output}\n`);
+    return;
+  }
+
+  // Every other command needs a catalog. Compose it once and inject — the
+  // commands themselves no longer know how the sources were resolved.
+  const buildCatalog = () =>
+    buildCatalogPort({
+      frameworkFlag: resolveFrameworkFlag(parsed.framework),
+      catalogFolders: parsed.catalogFolders,
+      env: process.env,
+      allowBuiltin: !parsed.noBuiltin,
+    });
 
   if (command === 'init') {
     if (!preset) {
@@ -100,7 +135,7 @@ const main = async (): Promise<void> => {
       process.exit(1);
     }
     const report = await runInit({
-      frameworkRoot: resolveFrameworkRoot(framework),
+      catalog: buildCatalog(),
       projectRoot: project ?? process.cwd(),
       presetName: preset,
       initGit,
@@ -112,7 +147,7 @@ const main = async (): Promise<void> => {
 
   if (command === 'install') {
     const report = await runInstall({
-      frameworkRoot: resolveFrameworkRoot(framework),
+      catalog: buildCatalog(),
       projectRoot: project ?? process.cwd(),
     });
     const output = json ? formatInstallReportJson(report) : formatInstallReport(report);
@@ -121,7 +156,7 @@ const main = async (): Promise<void> => {
   }
 
   if (command === 'list') {
-    const report = await runList({ frameworkRoot: resolveFrameworkRoot(framework) });
+    const report = await runList({ catalog: buildCatalog() });
     const output = json ? formatListReportJson(report) : formatListReport(report);
     process.stdout.write(`${output}\n`);
     return;
@@ -129,17 +164,10 @@ const main = async (): Promise<void> => {
 
   if (command === 'status') {
     const report = await runStatus({
-      frameworkRoot: resolveFrameworkRoot(framework),
+      catalog: buildCatalog(),
       projectRoot: project ?? process.cwd(),
     });
     const output = json ? formatStatusReportJson(report) : formatStatusReport(report);
-    process.stdout.write(`${output}\n`);
-    return;
-  }
-
-  if (command === 'detect') {
-    const report: DetectCommandReport = await runDetect({ path: path ?? process.cwd() });
-    const output = json ? formatDetectReportJson(report) : formatDetectReport(report);
     process.stdout.write(`${output}\n`);
     return;
   }

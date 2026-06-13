@@ -2,7 +2,12 @@ import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ManifestAlreadyExistsError, NotAGitRepoError, PresetNotFoundError } from '@claude-fw/core';
+import {
+  FsCatalogReader,
+  ManifestAlreadyExistsError,
+  NotAGitRepoError,
+  PresetNotFoundError,
+} from '@claude-fw/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { formatInitReport, formatInitReportJson, runInit } from './init.command.js';
 
@@ -42,7 +47,7 @@ describe('runInit (CLI command)', () => {
     await seedPreset('base');
 
     const report = await runInit({
-      frameworkRoot: framework,
+      catalog: new FsCatalogReader(framework),
       projectRoot: project,
       presetName: 'base',
     });
@@ -59,7 +64,11 @@ describe('runInit (CLI command)', () => {
     await writeFile(join(project, '.claude-fw.yaml'), 'preset: base\n', 'utf-8');
 
     await expect(
-      runInit({ frameworkRoot: framework, projectRoot: project, presetName: 'base' }),
+      runInit({
+        catalog: new FsCatalogReader(framework),
+        projectRoot: project,
+        presetName: 'base',
+      }),
     ).rejects.toThrow(ManifestAlreadyExistsError);
   });
 
@@ -67,7 +76,11 @@ describe('runInit (CLI command)', () => {
     await seedPreset('base');
 
     await expect(
-      runInit({ frameworkRoot: framework, projectRoot: project, presetName: 'nope' }),
+      runInit({
+        catalog: new FsCatalogReader(framework),
+        projectRoot: project,
+        presetName: 'nope',
+      }),
     ).rejects.toThrow(PresetNotFoundError);
 
     // No partial manifest left behind
@@ -79,7 +92,11 @@ describe('runInit (CLI command)', () => {
     const nonGit = await mkdtemp(join(tmpdir(), 'cfw-init-no-git-'));
     try {
       await expect(
-        runInit({ frameworkRoot: framework, projectRoot: nonGit, presetName: 'base' }),
+        runInit({
+          catalog: new FsCatalogReader(framework),
+          projectRoot: nonGit,
+          presetName: 'base',
+        }),
       ).rejects.toThrow(NotAGitRepoError);
       await expect(readFile(join(nonGit, '.claude-fw.yaml'), 'utf-8')).rejects.toThrow();
     } finally {
@@ -92,7 +109,7 @@ describe('runInit (CLI command)', () => {
     const nonGit = await mkdtemp(join(tmpdir(), 'cfw-init-no-git-'));
     try {
       const report = await runInit({
-        frameworkRoot: framework,
+        catalog: new FsCatalogReader(framework),
         projectRoot: nonGit,
         presetName: 'base',
         initGit: true,
