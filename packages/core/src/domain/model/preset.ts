@@ -1,3 +1,4 @@
+import type { DetectRule } from './detect-rule.js';
 import type {
   AgentId,
   CommandId,
@@ -17,6 +18,7 @@ export type PresetInit = {
   readonly instructionsIds?: readonly InstructionsId[];
   readonly gitHookNames?: readonly HookName[];
   readonly settings?: Settings;
+  readonly detects?: readonly DetectRule[];
 };
 
 export class Preset {
@@ -29,6 +31,7 @@ export class Preset {
     public readonly instructionsIds: readonly InstructionsId[],
     public readonly gitHookNames: readonly HookName[],
     public readonly settings: Settings,
+    public readonly detects: readonly DetectRule[],
   ) {}
 
   static of(init: PresetInit): Preset {
@@ -41,6 +44,7 @@ export class Preset {
       init.instructionsIds ?? [],
       init.gitHookNames ?? [],
       init.settings ?? Settings.empty(),
+      init.detects ?? [],
     );
   }
 

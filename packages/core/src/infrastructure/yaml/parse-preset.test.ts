@@ -131,4 +131,85 @@ settings:
       expect(() => parsePreset('git-hooks: [42]', 'p')).toThrow(InvalidPresetError);
     });
   });
+
+  describe('detects', () => {
+    it('defaults to an empty list when omitted (preset acts as fallback)', () => {
+      const preset = parsePreset('', 'base');
+      expect(preset.detects).toEqual([]);
+    });
+
+    it('parses a single rule with dependencies', () => {
+      const yaml = `
+detects:
+  - dependencies:
+      - react
+      - react-dom
+`;
+      const preset = parsePreset(yaml, 'react-app');
+      expect(preset.detects).toHaveLength(1);
+      expect(preset.detects[0]?.dependencies).toEqual(['react', 'react-dom']);
+      expect(preset.detects[0]?.files).toBeUndefined();
+    });
+
+    it('parses a single rule with files', () => {
+      const yaml = `
+detects:
+  - files:
+      - Cargo.toml
+      - src-tauri/
+`;
+      const preset = parsePreset(yaml, 'rust-tauri');
+      expect(preset.detects).toHaveLength(1);
+      expect(preset.detects[0]?.files).toEqual(['Cargo.toml', 'src-tauri/']);
+      expect(preset.detects[0]?.dependencies).toBeUndefined();
+    });
+
+    it('parses a rule with both dependencies and files (AND semantics inside the rule)', () => {
+      const yaml = `
+detects:
+  - dependencies: [react]
+    files: [src-tauri/]
+`;
+      const preset = parsePreset(yaml, 'tauri-rust-react');
+      expect(preset.detects).toHaveLength(1);
+      expect(preset.detects[0]?.dependencies).toEqual(['react']);
+      expect(preset.detects[0]?.files).toEqual(['src-tauri/']);
+    });
+
+    it('parses multiple rules as an OR list', () => {
+      const yaml = `
+detects:
+  - dependencies: ['@nestjs/core']
+  - dependencies: ['@nestjs/common']
+`;
+      const preset = parsePreset(yaml, 'nestjs');
+      expect(preset.detects).toHaveLength(2);
+      expect(preset.detects[0]?.dependencies).toEqual(['@nestjs/core']);
+      expect(preset.detects[1]?.dependencies).toEqual(['@nestjs/common']);
+    });
+
+    it('rejects "detects" given as anything other than a list', () => {
+      expect(() => parsePreset('detects: react', 'p')).toThrow(InvalidPresetError);
+    });
+
+    it('rejects a non-object rule entry', () => {
+      expect(() => parsePreset('detects:\n  - react', 'p')).toThrow(InvalidPresetError);
+    });
+
+    it('rejects a rule whose dependencies field is not a list of strings', () => {
+      const yaml = `
+detects:
+  - dependencies: react
+`;
+      expect(() => parsePreset(yaml, 'p')).toThrow(InvalidPresetError);
+    });
+
+    it('rejects a rule whose files field is not a list of strings', () => {
+      const yaml = `
+detects:
+  - files: 'Cargo.toml'
+`;
+      expect(() => parsePreset(yaml, 'p')).toThrow(InvalidPresetError);
+    });
+  });
 });

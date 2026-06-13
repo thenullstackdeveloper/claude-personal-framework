@@ -1,4 +1,5 @@
 export { FsCatalogReader } from './fs-catalog-reader.js';
+export { FsStackInspector } from './fs-stack-inspector.js';
 /**
  * @deprecated Use {@link FsCatalogReader}. This alias remains for back-compat
  * and will be removed in a future major version once consumers migrate to the

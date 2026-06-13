@@ -1,5 +1,6 @@
 import { parse as parseYaml } from 'yaml';
 import { InvalidHookNameError, InvalidPresetError } from '../../domain/errors/domain-error.js';
+import type { DetectRule } from '../../domain/model/detect-rule.js';
 import {
   type CommandHook,
   type HookEvent,
@@ -179,6 +180,7 @@ export const parsePreset = (yamlText: string, name: string): Preset => {
   }
 
   const gitHookNames = parseGitHookNames(raw['git-hooks'], name);
+  const detects = parseDetects(raw['detects'], name);
 
   return Preset.of({
     name: presetName,
@@ -189,7 +191,34 @@ export const parsePreset = (yamlText: string, name: string): Preset => {
     instructionsIds,
     gitHookNames,
     settings: parseSettings(raw['settings'], name),
+    detects,
   });
+};
+
+const parseDetects = (raw: unknown, presetName: string): readonly DetectRule[] => {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    throw new InvalidPresetError(`preset "${presetName}": "detects" must be a list of rules`);
+  }
+  return raw.map((entry, i) => parseDetectRule(entry, presetName, i));
+};
+
+const parseDetectRule = (raw: unknown, presetName: string, index: number): DetectRule => {
+  if (!isObject(raw)) {
+    throw new InvalidPresetError(`preset "${presetName}": "detects[${index}]" must be a map`);
+  }
+  const rule: { -readonly [K in keyof DetectRule]: DetectRule[K] } = {};
+  if (raw['dependencies'] !== undefined) {
+    rule.dependencies = parseStringArray(
+      raw['dependencies'],
+      presetName,
+      `detects[${index}].dependencies`,
+    );
+  }
+  if (raw['files'] !== undefined) {
+    rule.files = parseStringArray(raw['files'], presetName, `detects[${index}].files`);
+  }
+  return rule;
 };
 
 const parseGitHookNames = (raw: unknown, presetName: string): readonly HookName[] => {
