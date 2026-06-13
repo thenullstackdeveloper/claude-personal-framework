@@ -809,6 +809,58 @@ describe('install use case', () => {
       expect(lockfileStore.current).toBeNull();
     });
 
+    it('skips core.hooksPath activation when the project is not a git repo', async () => {
+      inspector.setGitRepo(false);
+      const catalog = new InMemoryCatalog(
+        [presetWithHooks([HookName.of('commit-msg')])],
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map([['commit-msg', '#!/bin/sh\n']]),
+      );
+      const gitConfig = new FakeGitConfig(null);
+
+      const result = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog,
+        writer,
+        lockfileStore,
+        inspector,
+        gitConfig,
+      });
+
+      // Hooks were still written; the user gets them in .githooks/ for free.
+      expect(writer.written.gitHooks.map((h) => h.hookName)).toEqual(['commit-msg']);
+      // But the git config call never happened.
+      expect(gitConfig.current()).toBeNull();
+      expect(result.written.gitConfigActivated).toBe(false);
+      expect(result.written.gitConfigCurrent).toBeNull();
+      expect(result.written.gitConfigSkippedReason).toBe('not-a-git-repo');
+    });
+
+    it('does not skip when there are no hooks in the composition (back-compat)', async () => {
+      // No hooks at all → skippedReason stays null even if the project
+      // happens to not be a repo. The check is gated behind hookCount > 0.
+      inspector.setGitRepo(false);
+      const catalog = new InMemoryCatalog([
+        Preset.of({ name: PresetName.of('base'), agentIds: [AgentId.of('docs-manager')] }),
+      ]);
+      catalog['agents'].set('docs-manager', 'body');
+
+      const result = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog,
+        writer,
+        lockfileStore,
+        inspector,
+      });
+
+      expect(result.written.gitConfigSkippedReason).toBeNull();
+    });
+
     it('removes a hook when it disappears from the preset', async () => {
       lockfileStore.current = Lockfile.of({
         presetName: PresetName.of('base'),

@@ -50,7 +50,9 @@ export type InstallResult = {
     /**
      * Value of `core.hooksPath` after the install runs:
      *  - `null`     → `gitConfig` not provided, no hooks in the composition,
-     *                  or the use-case had no opportunity to inspect.
+     *                  or the use-case had no opportunity to inspect (e.g.
+     *                  activation was skipped because the project isn't a
+     *                  git repo).
      *  - `'.githooks'` → either just set by this install, or was already that
      *                  value and we left it as is.
      *  - any other  → the user has it pointing elsewhere and we deliberately
@@ -58,6 +60,15 @@ export type InstallResult = {
      *                  the user knows where their hooks live today.
      */
     readonly gitConfigCurrent: string | null;
+    /**
+     * Reason the activation of `core.hooksPath` was skipped, or `null` when
+     * no skip happened (either activation succeeded, or there was no reason
+     * to attempt it). Today the only skip reason is `'not-a-git-repo'`,
+     * surfaced when hooks are in the composition but the project isn't a
+     * git working tree — the hooks land in `.githooks/` regardless, ready
+     * to be picked up when the user later runs `git init`.
+     */
+    readonly gitConfigSkippedReason: 'not-a-git-repo' | null;
   };
 };
 
@@ -106,13 +117,19 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
   const instructionsWritten = await applyInstructionsDrift(writer, composition.instructions, drift);
 
   // Activation of `core.hooksPath`: only when at least one git-hook is
-  // in the composition and the user hasn't already configured the
-  // setting to something. Idempotent: re-installs leave existing config
-  // untouched whether it matches `.githooks` or not.
-  const { activated: gitConfigActivated, current: gitConfigCurrent } = await maybeActivateHooksPath(
-    gitConfig,
-    composition.gitHooks.length,
-  );
+  // in the composition, the project is a git repo, and the user hasn't
+  // already configured the setting to something. Idempotent: re-installs
+  // leave existing config untouched whether it matches `.githooks` or
+  // not. When the project isn't a git repo yet, the hooks were still
+  // written to .githooks/ above; we just skip the git config call and
+  // surface the reason in the report so the user can run `git init`
+  // later and have the next install pick it up.
+  const isGitRepo = composition.gitHooks.length > 0 ? await inspector.isGitRepo() : true;
+  const {
+    activated: gitConfigActivated,
+    current: gitConfigCurrent,
+    skippedReason: gitConfigSkippedReason,
+  } = await maybeActivateHooksPath(gitConfig, composition.gitHooks.length, isGitRepo);
 
   const nextLockfile = Lockfile.of({
     presetName: manifest.presetName,
@@ -151,6 +168,7 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
       gitHooks: composition.gitHooks.map((h) => h.hookName),
       gitConfigActivated,
       gitConfigCurrent,
+      gitConfigSkippedReason,
     },
   };
 };
@@ -159,17 +177,24 @@ type ActivationOutcome = {
   readonly activated: boolean;
   /** Value of `core.hooksPath` after this call. See InstallResult.written.gitConfigCurrent. */
   readonly current: string | null;
+  readonly skippedReason: 'not-a-git-repo' | null;
 };
 
 const maybeActivateHooksPath = async (
   gitConfig: GitConfigPort | undefined,
   hookCount: number,
+  isGitRepo: boolean,
 ): Promise<ActivationOutcome> => {
-  if (!gitConfig || hookCount === 0) return { activated: false, current: null };
+  if (!gitConfig || hookCount === 0) {
+    return { activated: false, current: null, skippedReason: null };
+  }
+  if (!isGitRepo) {
+    return { activated: false, current: null, skippedReason: 'not-a-git-repo' };
+  }
   const existing = await gitConfig.getHooksPath();
-  if (existing !== null) return { activated: false, current: existing };
+  if (existing !== null) return { activated: false, current: existing, skippedReason: null };
   await gitConfig.setHooksPath(GITHOOKS_DIR);
-  return { activated: true, current: GITHOOKS_DIR };
+  return { activated: true, current: GITHOOKS_DIR, skippedReason: null };
 };
 
 const applySettingsDrift = async (
