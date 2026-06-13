@@ -67,7 +67,7 @@ const parseIdOrSkip = <T>(rawId: string, factory: (s: string) => T): T | null =>
   }
 };
 
-export class CatalogReader implements CatalogPort {
+export class FsCatalogReader implements CatalogPort {
   constructor(public readonly frameworkRoot: string) {}
 
   async listPresets(): Promise<readonly Preset[]> {
