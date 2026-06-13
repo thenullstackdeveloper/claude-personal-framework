@@ -45,3 +45,5 @@ in, and what it leaves open.
 
 - [0001 — pr-creator provider coupling](0001-pr-creator-provider-coupling.md) — *deferred*
 - [0002 — node:crypto in the domain layer](0002-node-crypto-in-domain.md) — *accepted*
+- [0003 — Multi-source catalog migration](0003-multi-source-catalog-migration.md) — *accepted*
+- [0004 — Catalog sources as a composition concern](0004-catalog-sources-as-composition-concern.md) — *accepted*
