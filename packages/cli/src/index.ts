@@ -2,6 +2,11 @@
 
 import { buildCatalogPort } from './build-catalog.js';
 import {
+  formatDetectStackReport,
+  formatDetectStackReportJson,
+  runDetectStack,
+} from './detect-stack.command.js';
+import {
   type DetectCommandReport,
   formatDetectReport,
   formatDetectReportJson,
@@ -73,6 +78,7 @@ const printHelp = (): void => {
     '  list        List presets, agents, skills and commands in the catalog',
     '  status      Show drift between the catalog and the last install',
     '  detect      Report whether a path is a framework root and/or a project root',
+    '  detect-stack  Rank catalog presets by how well their detects: rules match a project',
     '  help        Show this help',
     '',
     'Catalog sources (precedence: env > --catalog-folder > --framework > builtin):',
@@ -168,6 +174,16 @@ const main = async (): Promise<void> => {
       projectRoot: project ?? process.cwd(),
     });
     const output = json ? formatStatusReportJson(report) : formatStatusReport(report);
+    process.stdout.write(`${output}\n`);
+    return;
+  }
+
+  if (command === 'detect-stack') {
+    const report = await runDetectStack({
+      catalog: buildCatalog(),
+      projectRoot: project ?? process.cwd(),
+    });
+    const output = json ? formatDetectStackReportJson(report) : formatDetectStackReport(report);
     process.stdout.write(`${output}\n`);
     return;
   }

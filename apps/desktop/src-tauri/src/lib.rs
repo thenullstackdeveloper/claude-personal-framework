@@ -160,6 +160,46 @@ fn detect_path(path: String) -> Result<PathDetection, CliError> {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct DetectStackMatch {
+    preset: String,
+    specificity: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DetectStackReport {
+    project_root: String,
+    matches: Vec<DetectStackMatch>,
+}
+
+/// Ranks catalog presets by how well their `detects:` rules match the
+/// project at `project_root`. The wizard preselects `matches[0]` unless
+/// `matches[0]` and `matches[1]` share specificity (a tie) — see
+/// `formatDetectStackReport` and ADR-0004.
+#[tauri::command]
+fn detect_stack(
+    framework_root: Option<String>,
+    project_root: String,
+) -> Result<DetectStackReport, CliError> {
+    let framework = framework_root.unwrap_or_default();
+    let args: Vec<&str> = if framework.is_empty() {
+        vec!["detect-stack", "--project", &project_root, "--json"]
+    } else {
+        vec![
+            "detect-stack",
+            "--framework",
+            &framework,
+            "--project",
+            &project_root,
+            "--json",
+        ]
+    };
+    let output = run_cli(&args)?;
+    parse_cli_json("detect-stack", &output)
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct InitReport {
     project_root: String,
     preset_name: String,
@@ -299,6 +339,7 @@ pub fn run() {
             list_catalog,
             install,
             detect_path,
+            detect_stack,
             initialize,
             status,
             ensure_git_repo

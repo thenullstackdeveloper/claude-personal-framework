@@ -143,3 +143,31 @@ export const initialize = (
 export const ensureGitRepo = (path: string): Promise<void> => {
   return invoke<void>('ensure_git_repo', { path });
 };
+
+export type DetectStackMatch = {
+  readonly preset: string;
+  readonly specificity: number;
+};
+
+export type DetectStackReport = {
+  readonly projectRoot: string;
+  readonly matches: readonly DetectStackMatch[];
+};
+
+/**
+ * Asks the engine which catalog presets match the project at `projectRoot`.
+ * Returns the matches ordered by descending specificity. The wizard
+ * preselects `matches[0]` unless the top two share specificity — see
+ * `detect-stack.command.ts` in the CLI for the human-readable mirror.
+ *
+ * `frameworkRoot` is optional — when omitted the engine falls back to its
+ * default catalog resolution (CFW_CATALOG_PATH > built-in once landed). The
+ * desktop today still passes its currently-loaded framework root so the
+ * detection answers from the same catalog the user sees in the wizard.
+ */
+export const detectStack = (
+  projectRoot: string,
+  frameworkRoot?: string,
+): Promise<DetectStackReport> => {
+  return invoke<DetectStackReport>('detect_stack', { frameworkRoot, projectRoot });
+};
