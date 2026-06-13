@@ -3,3 +3,8 @@ agents:
   - hexagonal-refactor-nestjs
 skills:
   - nestjs-hexagonal-patterns
+# `detects:` patterns are evaluated against the project root by the wizard
+# (see CLAUDEPERS-16). Each entry is AND; multiple entries are OR. Dependency
+# matches look at `dependencies` + `peerDependencies` only — not devDeps.
+detects:
+  - dependencies: ['@nestjs/core']

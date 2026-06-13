@@ -5,3 +5,10 @@ skills:
   - react-hexagonal-patterns
   - zustand-patterns
   - framer-motion-patterns
+# `detects:` patterns are evaluated against the project root by the wizard
+# (see CLAUDEPERS-16). Both `react` in dependencies AND a top-level
+# `src-tauri/` directory must be present — this preset is specific to the
+# tauri + rust + react combo, not a generic Tauri or generic React match.
+detects:
+  - dependencies: [react]
+    files: [src-tauri/]
