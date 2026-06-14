@@ -4,8 +4,10 @@ import { InitReport } from './components/init-report';
 import { InstallReport } from './components/install-report';
 import { ProjectHeader } from './components/project-header';
 import { RecentProjectsScreen } from './components/recent-projects-screen';
+import { SettingsPanel } from './components/settings-panel';
 import { useActiveProject } from './hooks/use-active-project';
 import { useAutoDismissSuccess } from './hooks/use-auto-dismiss';
+import { useBuiltinCatalogPref } from './hooks/use-builtin-catalog-pref';
 import { useCatalogFlow } from './hooks/use-catalog-flow';
 import { useDetectPath } from './hooks/use-detect-path';
 import { useInitFlow } from './hooks/use-init-flow';
@@ -14,21 +16,24 @@ import { usePathPicker } from './hooks/use-path-picker';
 import { type RecentProject, useRecentProjects } from './hooks/use-recent-projects';
 import { useStatusFlow } from './hooks/use-status-flow';
 import { useUserCatalogFolders } from './hooks/use-user-catalog-folders';
+import { useWelcomeWizardFlag } from './hooks/use-welcome-wizard-flag';
 
 function App() {
   const { activeProject, setActiveProject } = useActiveProject();
   const { recent, add: addRecent, remove: removeRecent } = useRecentProjects();
-  const { folders: userCatalogFolders } = useUserCatalogFolders();
+  const userFolders = useUserCatalogFolders();
+  const userCatalogFolders = userFolders.folders;
+  const { useBuiltin, setUseBuiltin } = useBuiltinCatalogPref();
+  const welcomeWizard = useWelcomeWizardFlag();
   const { browseProject } = usePathPicker();
 
-  // Sub-phase 4 still embeds the built-in catalog as the only Tauri-side
-  // fallback. There's no user-provided framework root anymore — Settings (B7)
-  // will expose a --no-builtin toggle in a follow-up; until then, frameworkRoot
-  // stays empty and only user-provided folders + the built-in are aggregated.
+  // No user-provided framework root anymore — only user folders + the
+  // built-in (gated by useBuiltin) feed the catalog. The legacy frameworkRoot
+  // string is kept as '' so the underlying Tauri/CLI plumbing stays uniform.
   const frameworkRoot = '';
   const projectRoot = activeProject?.path ?? '';
 
-  const catalog = useCatalogFlow(frameworkRoot, userCatalogFolders);
+  const catalog = useCatalogFlow(frameworkRoot, userCatalogFolders, useBuiltin);
   const { detection: projectDetection, refresh: refreshProjectDetection } =
     useDetectPath(projectRoot);
 
@@ -36,12 +41,14 @@ function App() {
     frameworkRoot,
     projectRoot,
     catalogFolders: userCatalogFolders,
+    allowBuiltin: useBuiltin,
   });
 
   const install = useInstallFlow({
     frameworkRoot,
     projectRoot,
     catalogFolders: userCatalogFolders,
+    allowBuiltin: useBuiltin,
     statusReport: status.report,
     onSuccess: status.checkSilently,
   });
@@ -50,6 +57,7 @@ function App() {
     frameworkRoot,
     projectRoot,
     catalogFolders: userCatalogFolders,
+    allowBuiltin: useBuiltin,
     onSuccess: refreshProjectDetection,
   });
 
@@ -104,14 +112,12 @@ function App() {
     }
   }, [init.outcome, activeProject, addRecent]);
 
-  // Settings panel placeholder — full SettingsPanel lands in B7. For now the
-  // button shows a no-op alert so the wiring is visible and the user knows
-  // the surface exists.
-  const [, setSettingsOpen] = useState(false);
-  const openSettings = (): void => {
-    setSettingsOpen(true);
-    // Placeholder for B7.
-    window.alert('Settings panel — coming in B7 (CLAUDEPERS-22).');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const openSettings = (): void => setSettingsOpen(true);
+  const closeSettings = (): void => setSettingsOpen(false);
+  const handleRestartWizard = (): void => {
+    welcomeWizard.reset();
+    closeSettings();
   };
 
   const handleBrowse = async (): Promise<void> => {
@@ -147,6 +153,16 @@ function App() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      {settingsOpen && (
+        <SettingsPanel
+          userFolders={userFolders}
+          useBuiltin={useBuiltin}
+          setUseBuiltin={setUseBuiltin}
+          envOverridePath={null}
+          onRestartWizard={handleRestartWizard}
+          onClose={closeSettings}
+        />
+      )}
       <div className="max-w-5xl mx-auto p-6 space-y-6">
         {!activeProject ? (
           <RecentProjectsScreen

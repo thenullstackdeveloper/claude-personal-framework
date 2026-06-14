@@ -42,11 +42,13 @@ export const useInitFlow = ({
   frameworkRoot,
   projectRoot,
   catalogFolders,
+  allowBuiltin,
   onSuccess,
 }: {
   readonly frameworkRoot: string;
   readonly projectRoot: string;
   readonly catalogFolders?: readonly string[];
+  readonly allowBuiltin?: boolean;
   readonly onSuccess?: () => void;
 }): {
   outcome: InitOutcome;
@@ -62,7 +64,13 @@ export const useInitFlow = ({
       setInitializing(true);
       setOutcome({ status: 'idle' });
       try {
-        const data = await runInitialize(frameworkRoot, projectRoot, presetName, catalogFolders);
+        const data = await runInitialize(
+          frameworkRoot,
+          projectRoot,
+          presetName,
+          catalogFolders,
+          allowBuiltin,
+        );
         setOutcome({
           status: 'success',
           presetName: data.presetName,
@@ -110,6 +118,7 @@ export const useInitFlow = ({
               projectRoot,
               presetName,
               catalogFolders,
+              allowBuiltin,
             );
             setOutcome({
               status: 'success',
@@ -128,7 +137,7 @@ export const useInitFlow = ({
         setInitializing(false);
       }
     },
-    [frameworkRoot, projectRoot, catalogFolders, onSuccess],
+    [frameworkRoot, projectRoot, catalogFolders, allowBuiltin, onSuccess],
   );
 
   const dismiss = useCallback(() => {

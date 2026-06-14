@@ -181,9 +181,21 @@ fn extract_builtin_catalog() -> Result<PathBuf, CliError> {
 /// `--catalog-folder` flags are processed in argv order by the CLI's
 /// `buildCatalogPort`, so the order here matters: user folders FIRST (higher
 /// precedence), built-in LAST (lowest).
-fn run_cli(extra_folders: &[String], args: &[&str]) -> Result<String, CliError> {
-    let builtin = builtin_catalog_path()?;
-    let builtin_str = builtin.to_string_lossy().into_owned();
+///
+/// When `include_builtin` is false, the embedded catalog is NOT injected at
+/// all — this implements the "Use built-in catalog" toggle in Settings (B7).
+/// The CLI still accepts the legacy `--no-builtin` flag for standalone use,
+/// but the Rust side just skips the injection instead of relying on it.
+fn run_cli(
+    extra_folders: &[String],
+    args: &[&str],
+    include_builtin: bool,
+) -> Result<String, CliError> {
+    let builtin_str = if include_builtin {
+        Some(builtin_catalog_path()?.to_string_lossy().into_owned())
+    } else {
+        None
+    };
     let cli = cli_path();
 
     let mut full_args: Vec<&str> = Vec::with_capacity(args.len() + extra_folders.len() * 2 + 2);
@@ -192,8 +204,10 @@ fn run_cli(extra_folders: &[String], args: &[&str]) -> Result<String, CliError> 
         full_args.push(folder);
     }
     full_args.extend_from_slice(args);
-    full_args.push("--catalog-folder");
-    full_args.push(&builtin_str);
+    if let Some(ref builtin) = builtin_str {
+        full_args.push("--catalog-folder");
+        full_args.push(builtin);
+    }
 
     let output = Command::new("node")
         .arg(&cli)
@@ -232,6 +246,7 @@ fn parse_cli_json<T: for<'de> Deserialize<'de>>(label: &str, raw: &str) -> Resul
 fn list_catalog(
     framework_root: Option<String>,
     catalog_folders: Option<Vec<String>>,
+    allow_builtin: Option<bool>,
 ) -> Result<CatalogReport, CliError> {
     let folders = catalog_folders.unwrap_or_default();
     let framework = framework_root.unwrap_or_default();
@@ -240,7 +255,7 @@ fn list_catalog(
         args.push("--framework");
         args.push(&framework);
     }
-    let output = run_cli(&folders, &args)?;
+    let output = run_cli(&folders, &args, allow_builtin.unwrap_or(true))?;
     parse_cli_json("list", &output)
 }
 
@@ -256,7 +271,9 @@ struct PathDetection {
 // CLI, same as every other command.
 #[tauri::command]
 fn detect_path(path: String) -> Result<PathDetection, CliError> {
-    let output = run_cli(&[], &["detect", "--path", &path, "--json"])?;
+    // detect_path doesn't consume the catalog, so the built-in is irrelevant
+    // — include it to keep the CLI invocation uniform with the other commands.
+    let output = run_cli(&[], &["detect", "--path", &path, "--json"], true)?;
     parse_cli_json("detect", &output)
 }
 
@@ -282,6 +299,7 @@ struct DetectStackReport {
 fn detect_stack(
     framework_root: Option<String>,
     catalog_folders: Option<Vec<String>>,
+    allow_builtin: Option<bool>,
     project_root: String,
 ) -> Result<DetectStackReport, CliError> {
     let folders = catalog_folders.unwrap_or_default();
@@ -291,7 +309,7 @@ fn detect_stack(
         args.push("--framework");
         args.push(&framework);
     }
-    let output = run_cli(&folders, &args)?;
+    let output = run_cli(&folders, &args, allow_builtin.unwrap_or(true))?;
     parse_cli_json("detect-stack", &output)
 }
 
@@ -307,6 +325,7 @@ struct InitReport {
 fn initialize(
     framework_root: Option<String>,
     catalog_folders: Option<Vec<String>>,
+    allow_builtin: Option<bool>,
     project_root: String,
     preset_name: String,
 ) -> Result<InitReport, CliError> {
@@ -324,7 +343,7 @@ fn initialize(
         args.push("--framework");
         args.push(&framework);
     }
-    let output = run_cli(&folders, &args)?;
+    let output = run_cli(&folders, &args, allow_builtin.unwrap_or(true))?;
     parse_cli_json("init", &output)
 }
 
@@ -332,6 +351,7 @@ fn initialize(
 fn install(
     framework_root: Option<String>,
     catalog_folders: Option<Vec<String>>,
+    allow_builtin: Option<bool>,
     project_root: String,
 ) -> Result<InstallReport, CliError> {
     let folders = catalog_folders.unwrap_or_default();
@@ -341,7 +361,7 @@ fn install(
         args.push("--framework");
         args.push(&framework);
     }
-    let output = run_cli(&folders, &args)?;
+    let output = run_cli(&folders, &args, allow_builtin.unwrap_or(true))?;
     parse_cli_json("install", &output)
 }
 
@@ -439,6 +459,7 @@ fn ensure_git_repo(path: String) -> Result<(), CliError> {
 fn status(
     framework_root: Option<String>,
     catalog_folders: Option<Vec<String>>,
+    allow_builtin: Option<bool>,
     project_root: String,
 ) -> Result<StatusReport, CliError> {
     let folders = catalog_folders.unwrap_or_default();
@@ -448,7 +469,7 @@ fn status(
         args.push("--framework");
         args.push(&framework);
     }
-    let output = run_cli(&folders, &args)?;
+    let output = run_cli(&folders, &args, allow_builtin.unwrap_or(true))?;
     parse_cli_json("status", &output)
 }
 

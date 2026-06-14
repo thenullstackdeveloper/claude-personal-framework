@@ -40,12 +40,14 @@ export const useInstallFlow = ({
   frameworkRoot,
   projectRoot,
   catalogFolders,
+  allowBuiltin,
   statusReport,
   onSuccess,
 }: {
   readonly frameworkRoot: string;
   readonly projectRoot: string;
   readonly catalogFolders?: readonly string[];
+  readonly allowBuiltin?: boolean;
   readonly statusReport: StatusReport | null;
   readonly onSuccess?: () => void | Promise<void>;
 }): {
@@ -70,7 +72,7 @@ export const useInstallFlow = ({
     setInstalling(true);
     setOutcome({ status: 'idle' });
     try {
-      const data = await runInstall(frameworkRoot, projectRoot, catalogFolders);
+      const data = await runInstall(frameworkRoot, projectRoot, catalogFolders, allowBuiltin);
       setOutcome({ status: 'success', data });
       await onSuccess?.();
     } catch (e) {
@@ -78,7 +80,7 @@ export const useInstallFlow = ({
     } finally {
       setInstalling(false);
     }
-  }, [frameworkRoot, projectRoot, catalogFolders, statusReport, onSuccess]);
+  }, [frameworkRoot, projectRoot, catalogFolders, allowBuiltin, statusReport, onSuccess]);
 
   const dismiss = useCallback(() => {
     setOutcome({ status: 'idle' });

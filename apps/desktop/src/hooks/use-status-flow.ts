@@ -22,10 +22,12 @@ export const useStatusFlow = ({
   frameworkRoot,
   projectRoot,
   catalogFolders,
+  allowBuiltin,
 }: {
   readonly frameworkRoot: string;
   readonly projectRoot: string;
   readonly catalogFolders?: readonly string[];
+  readonly allowBuiltin?: boolean;
 }): {
   report: StatusReport | null;
   error: CliError | null;
@@ -42,7 +44,7 @@ export const useStatusFlow = ({
     setChecking(true);
     setError(null);
     try {
-      const data = await fetchStatus(frameworkRoot, projectRoot, catalogFolders);
+      const data = await fetchStatus(frameworkRoot, projectRoot, catalogFolders, allowBuiltin);
       setReport(data);
     } catch (e) {
       setReport(null);
@@ -50,16 +52,16 @@ export const useStatusFlow = ({
     } finally {
       setChecking(false);
     }
-  }, [frameworkRoot, projectRoot, catalogFolders]);
+  }, [frameworkRoot, projectRoot, catalogFolders, allowBuiltin]);
 
   const checkSilently = useCallback(async () => {
     try {
-      const data = await fetchStatus(frameworkRoot, projectRoot, catalogFolders);
+      const data = await fetchStatus(frameworkRoot, projectRoot, catalogFolders, allowBuiltin);
       setReport(data);
     } catch {
       // best-effort: leave report and error untouched
     }
-  }, [frameworkRoot, projectRoot, catalogFolders]);
+  }, [frameworkRoot, projectRoot, catalogFolders, allowBuiltin]);
 
   const dismiss = useCallback(() => {
     setReport(null);

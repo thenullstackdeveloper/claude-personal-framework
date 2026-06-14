@@ -79,16 +79,23 @@ export type InstallReport = {
 export const listCatalog = (
   frameworkRoot: string,
   catalogFolders?: readonly string[],
+  allowBuiltin?: boolean,
 ): Promise<CatalogReport> => {
-  return invoke<CatalogReport>('list_catalog', { frameworkRoot, catalogFolders });
+  return invoke<CatalogReport>('list_catalog', { frameworkRoot, catalogFolders, allowBuiltin });
 };
 
 export const install = (
   frameworkRoot: string,
   projectRoot: string,
   catalogFolders?: readonly string[],
+  allowBuiltin?: boolean,
 ): Promise<InstallReport> => {
-  return invoke<InstallReport>('install', { frameworkRoot, projectRoot, catalogFolders });
+  return invoke<InstallReport>('install', {
+    frameworkRoot,
+    projectRoot,
+    catalogFolders,
+    allowBuiltin,
+  });
 };
 
 export type PathDetection = {
@@ -133,8 +140,14 @@ export const status = (
   frameworkRoot: string,
   projectRoot: string,
   catalogFolders?: readonly string[],
+  allowBuiltin?: boolean,
 ): Promise<StatusReport> => {
-  return invoke<StatusReport>('status', { frameworkRoot, projectRoot, catalogFolders });
+  return invoke<StatusReport>('status', {
+    frameworkRoot,
+    projectRoot,
+    catalogFolders,
+    allowBuiltin,
+  });
 };
 
 export type InitReport = {
@@ -148,12 +161,14 @@ export const initialize = (
   projectRoot: string,
   presetName: string,
   catalogFolders?: readonly string[],
+  allowBuiltin?: boolean,
 ): Promise<InitReport> => {
   return invoke<InitReport>('initialize', {
     frameworkRoot,
     projectRoot,
     presetName,
     catalogFolders,
+    allowBuiltin,
   });
 };
 
@@ -190,10 +205,12 @@ export const detectStack = (
   projectRoot: string,
   frameworkRoot?: string,
   catalogFolders?: readonly string[],
+  allowBuiltin?: boolean,
 ): Promise<DetectStackReport> => {
   return invoke<DetectStackReport>('detect_stack', {
     frameworkRoot,
     projectRoot,
     catalogFolders,
+    allowBuiltin,
   });
 };
