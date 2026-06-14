@@ -1,6 +1,6 @@
 # Roadmap
 
-Prioritized backlog as of 2026-06-13. Update it when priorities shift
+Prioritized backlog as of 2026-06-14. Update it when priorities shift
 or items ship — a stale roadmap is worse than no roadmap.
 
 Tiers reflect *when*, not *what*:
@@ -14,126 +14,51 @@ Tiers reflect *when*, not *what*:
 
 ## Now
 
-### 1 · Polish the desktop UI
+### 1 · Consolidation post-`CLAUDEPERS-14`
 
-Start by extracting `App.tsx` (~350 lines, four flows mixed) into
-custom hooks: `useInstallFlow`, `useStatusFlow`, `useInitFlow`,
-plus path/persistence wiring. Once the monolith is broken, iterate
-UX and missing functionality as sub-items emerging from real usage —
-not pre-imagined.
+Small consolidation block after the UI redesign. Three threads, all
+low-risk, plus the screenshot capture that was previously in Next but
+makes sense to fold in now while the new UI is fresh.
 
-**Sub-phases of the refactor:**
+**Tech debt cleanup** (audit-flagged "monitor, don't act" items that
+have accumulated):
 
-- *0* — extract `buildConfirmMessage` helper (`1dc8767`). ✓
-- *1* — extract `useDetectPath` hook (`639b68d`). ✓
-- *2* — extract `useCatalogFlow` hook (`4d459d8`). ✓
-- *3* — extract `useStatusFlow` hook (`a1c67aa`). ✓
-- *4* — extract `useInitFlow` hook (`6c704ee`). ✓
-- *5* — extract `useInstallFlow` hook + collapse useStatusFlow's
-  setReport escape hatch into `checkSilently` (`819fde7`). ✓
-- *6* — extract `usePathPicker` hook (`853f0e5`). ✓
-- *7* — extract `<InitReport>` component parallel to `<InstallReport>`
-  (`0f21998`). ✓ — App.tsx ends at 198 lines from ~350 originally
-  (-43%); two inline error banners remain (catalogError, statusError),
-  tracked separately as 1.UX.8.
+- Report DTOs triplicated across CLI / Rust / frontend — the surface
+  grew meaningfully with Settings + Instructions + git hooks + the
+  new catalog source flags. Consider a shared schema if it grows
+  further. See Deferred 6.
+- `parseSettings` duplicated between `parse-lockfile.ts` and
+  `parse-preset.ts`.
+- `isErrnoException` duplicated across four `infrastructure/fs/`
+  adapters.
+- CLI top-level error handler detects `--json` by re-scanning
+  `process.argv` instead of using the parsed flag
+  (`packages/cli/src/index.ts`). Inherited from Bloque 2; harmonize
+  on the rewrite of `main()`.
 
-**UX sub-items surfaced during sub-phase 1 smoke tests** (each ships
-as an independent commit).
+**Backlog Plane tickets from the `CLAUDEPERS-1` umbrella that never
+shipped** (all low priority, none load-bearing):
 
-**Recommended next up** (my vote, pick whichever fits the time
-available):
+- `CLAUDEPERS-7` — refine `commit-style` skill to dial down body
+  verbosity.
+- `CLAUDEPERS-8` — resolve git-hook ref asymmetry in project-manifest
+  parse/serialize.
+- `CLAUDEPERS-9` — backfill tests for git-hook no-op branches and
+  update the e2e.
 
-1. **1.UX.9** — engine throws `InvalidFrameworkRootError` on a
-   bogus framework root + UI catches it via the existing
-   `<ErrorBanner>` plumbing. ~30–45 min, fixes a fresh bug surfaced
-   today (silent "0 / 0 / 0" catalog), reuses the infra just shipped
-   in 1.UX.8.
-2. **1.UX.3 + 1.UX.6** — same family (clear stale status report and
-   stale outcome banners on Project root change). ~30 min together,
-   small surface, removes confusing cross-project carryover.
+**README screenshots** — capture the new UI now that it's stable:
+welcome wizard (step 1 with detect-stack preselect, step 2 with the
+setup summary), free mode with the three cards and an active project,
+recent projects screen, Settings panel with both sections. The README
+edit is trivial; getting the screenshots right while the app is fresh
+in memory is the point.
 
-Then 1.UX.5 (Load catalog re-press feedback, ~15 min cosmetic) and
-the 1.UX.1 + 1.UX.2 pair (tooltips + disable Install, interlocked).
-1.UX.7 (project-dir modal) is the heaviest (three layers: engine
-error type + Rust command + UI modal) and earns its own session.
-
-**Shipped so far** (UX block):
-
-- 1.UX.4 — preset dropdown legible on dark theme — commit `98baf92`.
-- 1.UX.8 — Dismiss on `catalogError` / `statusError` via generic
-  `<ErrorBanner>` — commit `2e712cd`.
-
-- *1.UX.1* — **Tooltips on disabled buttons.** Today buttons go grey
-  with no explanation of what's missing (catalog, preset, paths).
-  Each disabled state needs a tooltip naming the gate.
-- *1.UX.2* — **Disable Install when context is incomplete.** The
-  Install button stays vibrant violet even with no project / no
-  catalog / no manifest. Should grey out and trigger the tooltip
-  from 1.UX.1.
-- *1.UX.3* — **Clear stale status report on path change.** The
-  Status panel keeps showing the previous project's drift report
-  after the Project root field changes. Clear it on path change (or
-  re-run check automatically — TBD).
-- *1.UX.4* — **Fix preset dropdown styling.** ✓ shipped `98baf92`.
-  The `<select>` inside the "Project not initialized" block was
-  rendering white-on-white in webkit/Tauri-Linux; fixed with
-  `color-scheme: dark` on the select + explicit classes on
-  `<option>`.
-- *1.UX.5* — **Visible feedback on Load catalog re-press.** When the
-  catalog is already loaded and the button is pressed again, only a
-  microsecond flicker happens. Add a toast or visible pulse
-  confirming the refresh — do not disable the button (re-loading is
-  legitimate).
-- *1.UX.6* — **Clear stale outcome banners on path change.** Init and
-  Install success banners survive a Project root change and keep
-  showing as if they belonged to the new project (e.g. "Installed
-  preset base" from project A is still visible after switching to
-  project B). Same family as 1.UX.3 (stale status report). Clear
-  these outcomes when the Project root field changes.
-- *1.UX.8* — **Missing Dismiss on `catalogError` / `statusError`
-  banners.** ✓ shipped `2e712cd`. Closed via the "option C" path:
-  extracted a generic `<ErrorBanner>` component, added
-  `dismissError()` to `useCatalogFlow` (keeps the loaded catalog
-  intact), and reused the existing `useStatusFlow.dismiss()` for
-  the status side. App.tsx now has no inline error `<section>`.
-- *1.UX.7* — **Friendly handling when the project directory does not
-  exist.** Today if the user types a Project root path whose folder
-  does not exist, `initialize` falls through to a write that triggers
-  `ENOENT` raw from the filesystem and the banner shows the
-  fs-level message verbatim. Replace with: engine returns a typed
-  `ProjectDirMissingError` (`code: 'PROJECT_DIR_MISSING'`), the UI
-  catches it and shows a native confirmation modal *"The folder X
-  does not exist. Create it and continue?"* — on confirm, the UI
-  invokes a new Tauri command `ensure_project_dir(path)` that does
-  `fs::create_dir_all` and then retries `initialize`; on cancel,
-  outcome returns to idle without a red banner. Three-layer change:
-  engine (typed error replacing the ENOENT leak), Rust
-  (`ensure_project_dir` command), UI (catch + modal + retry in
-  `useInitFlow` or its caller). Keeps the engine agnostic to client
-  policy — CLI can stay strict, desktop is friendly. Likely shipped
-  as 2-3 independent commits per Angel's commit hygiene rule.
-- *1.UX.9* — **Silent empty catalog when framework root is invalid.**
-  Surfaced during 1.UX.8 smoke tests (2026-06-03): pointing Framework
-  root at a path that does not exist returns a "success" catalog with
-  `{ presets: [], agents: [], skills: [], commands: [], instructions: [] }`
-  and the UI happily renders `<CatalogView>` with "0 / 0 / 0 / 0 / 0",
-  no hint that the path was bogus (verified with `node packages/cli list
-  --framework /tmp/nope-1.UX.8 --json` → empty arrays, exit 0). Root
-  cause is in the engine: `CatalogReader.listArtifactSummaries` swallows
-  missing subdirs and yields `[]`. Two-step fix: (a) engine validates
-  framework root exists and contains at least one of `presets/ agents/
-  skills/ commands/ instructions/` — if none, throw a typed
-  `InvalidFrameworkRootError` (`code: 'INVALID_FRAMEWORK_ROOT'`); (b)
-  desktop catches it via the existing `<ErrorBanner>` plumbing — no UI
-  surface change needed beyond the new error code. Related to but
-  distinct from Deferred 15 (which rethinks WHERE the catalog lives);
-  this just makes today's model honest.
-
-- *Why now:* the file size and lack of separation makes adding any
-  UX or functionality friction. Refactoring first removes the
-  blocker for everything that follows.
-- *Cost:* medium. Refactor itself is bounded (~1 day) plus
-  whatever UX work the next sub-items end up justifying.
+- *Why now:* all individually innocuous, accumulated enough to clear
+  in one focused pass. Closing them keeps the surface clean before
+  Global bin install (Deferred 13) ships outwards. Capturing
+  screenshots while the UI is fresh in memory is cheaper than coming
+  back to it.
+- *Cost:* low each. Bounded to one focused session.
 
 ### 2 · Presets for the remaining personal stacks (React Native, Vue 3, Laravel)
 
@@ -159,42 +84,28 @@ stack-specific skills), three stacks remain on the personal radar:
   there's a concrete project that pulls for it — not all three at
   once on speculation.
 
-### 3 · Technical debt cleanup
+### 3 · `CLAUDEPERS-10` — pre-commit/pre-push hooks adapt to the project's tooling
 
-Items the architecture audit flagged as "monitor, don't act":
+Today `base.yaml` ships `pre-commit` and `pre-push` hooks that hard-code
+`pnpm` commands. A project on `npm` or `yarn` sees them try to run a
+binary it doesn't have and the hooks fail silently. The fix detects the
+package manager from lock-file presence (`pnpm-lock.yaml` /
+`yarn.lock` / `package-lock.json`) and substitutes the right runner
+when materializing the hook.
 
-- Report DTOs triplicated (CLI / Rust / frontend) — the surface grew
-  meaningfully with Bloque 3 (`instructions`, `settings`,
-  `StatusSingleton`, `CliError`). Consider a shared schema if it
-  grows further. See Deferred 6.
-- `parseSettings` duplicated between `parse-lockfile.ts` and
-  `parse-preset.ts`.
-- `isErrnoException` duplicated across four `infrastructure/fs/`
-  adapters.
-- CLI top-level error handler detects `--json` by re-scanning
-  `process.argv` instead of using the parsed flag
-  (`packages/cli/src/index.ts`). Heredado del Bloque 2; armonizar
-  cuando se reescriba `main()`.
-
-- *Why now:* all innocuous individually but they accumulate. Closing
-  them clears the catalog before global bin install (Deferred 13)
-  ships outwards.
-- *Cost:* low each.
+- *Why now, not later:* the embedded catalog from `CLAUDEPERS-25`
+  means any new project that picks `base` inherits the hooks
+  immediately. The first time the catalog lands in a non-pnpm repo,
+  the hooks die. Cheap to fix; valuable for the moment a second
+  stack-flavored preset enters the wild.
+- *Cost:* medium. One small algorithm in the writer (or a templating
+  pass), tests for each runner, smoke against a non-pnpm fixture.
 
 ---
 
 ## Next
 
-### 4 · Screenshots for the main README
-
-Capture: empty state, catalog loaded with the Instructions card,
-Initialize block on a fresh project, status with drift (including
-the Settings/Instructions singleton rows), successful install
-showing Settings + Instructions lines, take-over banner.
-
-- *Why next, not now:* better captured **after** the UI polish of
-  Now item 1 lands — otherwise the screenshots go stale immediately.
-- *Cost:* low — you capture, the README edit is trivial.
+(No Next items right now — promote from Deferred when triggers fire.)
 
 ---
 
@@ -222,14 +133,28 @@ renumbered.
 | 12 · Surface frontmatter parse errors in `list`/`install` | A second catalog artifact silently ends up without description because of a YAML edge case (today: `: ` in plain scalar broke `hexagonal-test-reviewer` — commit `1f0ad0a`). Today `extractFrontmatterDescription` swallows parse errors and returns `''`, which is defensive but hard to diagnose. When it bites again, change the contract to emit a warning to stderr (or fail loudly in `--json`) when frontmatter exists but description is empty / unparseable. |
 | 14 · Calibrate `tauri-rust-react` catalog set | First live use of the preset on Angel's Plinth side project (Stream-Deck-style touch panel for sim inputs / telemetry — see memory `project_plinth`) surfaces real gaps or false advice in `rust-hexagonal-rules`, `tauri-patterns`, `react-hexagonal-patterns`, `zustand-patterns`, `framer-motion-patterns`. Same calibration cycle that closed `hexagonal-refactor-nestjs` after the Tubegist sweep — not anticipatory. |
 | 13 · Global bin install for the CLI | Now items 1, 2 and 3 closed. Ship `claude-fw` as a globally invokable command (`pnpm i -g` from the repo, or publishing to a scoped registry). Deferred because installing it globally before the UI is polished, the catalog has more stacks, and the engine debt is cleared exports an unfinished feel to anyone who tries it from outside. ≈ 1 h once unblocked. |
-| 15 · Rethink framework-root UX (built-in catalog + user catalogs) | Today "Framework root" forces you to point at a clone of this repo; if the path is wrong, the dropdown fills with a stale catalog and the only feedback is the silent absence of the expected preset (Angel hit this looking for `tauri-rust-react` on 2026-06-02). **Angel's base hypothesis to open the debate (NOT a decision)**: the app should ship with a reasonably varied built-in catalog, and a Settings section should let you register one or more "local catalog folders" for overrides / personal agents. The mental model shifts from "point at the repo" to "the app brings the catalog; you add your own". Tradeoffs to debate when this is taken up: bundling the catalog inside the binary vs. downloading on demand (signed/versioned), how the built-in is updated without a reinstall, precedence (user > built-in), what happens with the dev flow of this very repo (which DOES want to edit the catalog in place), and whether this should precede or follow the global bin install (Deferred 13) — they are entangled. Trigger: a second potential user appears (someone who isn't you), or the catalog grows to ≥ 4 stacks and "clone the repo and point here" stops being reasonable. |
+| 15 · ~~Rethink framework-root UX~~ | **Closed** by `CLAUDEPERS-14` (2026-06-14): built-in catalog embedded in the binary, user folders configurable from Settings with precedence `env > user > built-in`, env var `CFW_CATALOG_PATH` for the dev flow of this repo. Decisions and architecture in ADRs 0003 and 0004. |
 | 16 · Onboarding git hooks on fresh clones | Git limitation: `core.hooksPath` is repo-local config (`.git/config`) and is NOT inherited on clone. Now that git hooks ship as a catalog artifact (Recently shipped: `CLAUDEPERS-1`), a fresh clone of any repo using the framework — or a new collaborator joining the project — will NOT have hooks active until they run `claude-fw install`. The install-report line ("Git config: set core.hooksPath = .githooks") mitigates the first install, but the first time someone clones and forgets to run install, the hooks silently don't fire and the catalog looks broken. Surfaced by the `hexagonal-architect` during the planning of `CLAUDEPERS-1` as a known risk explicitly outside the MVP scope. Three options to debate when triggered: (a) a generated block in the installed `CLAUDE.md` with the exact command to run; (b) a `bootstrap.sh` script shipped by the catalog that activates hooks plus whatever else is needed; (c) Claude Code-level detection of `.githooks/` without `core.hooksPath` pointing at it. Trigger: the first time the repo is cloned on another machine and the hooks don't fire, or a collaborator joins the project. |
 
 ---
 
 ## Recently shipped
 
-- **Git hooks as a catalog artifact (Now 1, `CLAUDEPERS-1` umbrella)** — first artifact type that lives outside `.claude/` and first with an executable bit. Shipped across 5 planned sub-phases + 3 smoke-driven fixes:
+- **Polish the desktop UI → real-product experience (Now 1, `CLAUDEPERS-14` umbrella)** — moved the desktop from a four-button vertical stack to a wizard-gated product. Fourteen sub-issues across engine, CLI, Rust and frontend; ADRs 0003 and 0004 record the load-bearing architectural choices. Eight commits over three days (2026-06-13 → 2026-06-14):
+  - **Engine multi-source catalog** (`1805a33`, `CLAUDEPERS-15` + `-17` + `-18`): `AggregatedCatalog` decorator with first-wins precedence `env > --catalog-folder > --framework > builtin`, `NoCatalogSourceError`, new CLI flags. Closed the `frameworkRoot` legacy without breaking it. `2ccd1f7` renamed `CatalogReader` → `FsCatalogReader` with deprecated alias.
+  - **Stack detection** (`8fbac22` + `0134cac` + `1fea919`, `CLAUDEPERS-16`): `DetectRule` VO, `evaluateDetects` pure service, `StackInspectorPort` + `FsStackInspector` (`dependencies` + `peerDependencies` only, decision H2 / `CLAUDEPERS-28`), `detectStack` use-case, CLI `detect-stack --json`, Tauri binding. `nestjs` and `tauri-rust-react` presets gained their `detects:` blocks.
+  - **Embedded catalog** (`15e33fd`, `CLAUDEPERS-25`): `build.rs` copies the catalog dirs into `$OUT_DIR` with a sha256 content hash, `include_dir!` ships them inside the binary, runtime extracts to `$XDG_CACHE_HOME/cfw/builtin-<hash>/` once and purges stale siblings. Also fixed a latent precedence bug in the original injection order.
+  - **Documentation** (`7d39723`, `CLAUDEPERS-26` + `-27` + `-28`): ADR-0003 (multi-source migration + `--framework` deprecation path), ADR-0004 (catalog sources as composition concern, with the architect's push-back recorded), `docs/catalog-detection.md` policy.
+  - **Project-dir missing modal** (`43361be`, `CLAUDEPERS-24`): `ProjectDirMissingError` + `projectDirExists()` port + CLI `--create-dir` + Tauri `ensure_project_dir` + native confirm modal that chains into the existing `NOT_A_GIT_REPO` flow.
+  - **Tauri commands accept user folders + builtin toggle** (`f9a757c` + `8d33f33`): commands accept `catalog_folders` and `allow_builtin`; `run_cli` orders argv so user folders out-rank the built-in. Fixed a latent ordering bug that gave the built-in higher precedence than `--framework`.
+  - **Foundation hooks** (`275a274` + `8b0d7b2` + `08fa860`): `useUserCatalogFolders` (persisted + folder validation on add via list comparison), `useRecentProjects` (5 most-recent, sorted by recency), `useActiveProject` (single source of truth + persistence). Test setup gained a `MemoryStorage` shim for `localStorage`.
+  - **Components** (`64e17ce`): `ProjectHeader` + hand-rolled `SwitchProjectDropdown` (decision D3, no UI primitives library).
+  - **Free mode redesign** (`b9332f6`, `CLAUDEPERS-20` + `-21` + `-23`): `App.tsx` rewritten around `useActiveProject`; three cards (`StatusCard` / `CatalogCard` / `ActionsCard`); ephemeral outcomes that auto-dismiss on success after 5 s and stay sticky on error (decision D1); recent-projects screen when there's no active project; cross-flow reset on project switch with auto silent re-check.
+  - **Settings panel** (`8d33f33`, `CLAUDEPERS-22`): `<dialog>`-based modal full-screen (decision D2); user folders CRUD with validation + remove; `Use built-in catalog` toggle persisted as `cfw.useBuiltinCatalog`; CFW_CATALOG_PATH override info row; Restart welcome wizard button.
+  - **Welcome wizard** (`475eb71`, `CLAUDEPERS-19`): two-step guided setup (decision F), Step 1 with detect-stack preselect that skips ties (decision A3), Step 2 with init + install sequencing that reuses the existing `PROJECT_DIR_MISSING` / `NOT_A_GIT_REPO` modals but skips the install confirm (the wizard's Set up IS the confirm); gated by `cfw.welcomeWizardCompleted` flag with Skip / Restart paths. NoCatalogBanner surfaces the misconfigured-Settings dead-end with an actionable "Open settings" button instead of pretending it's "no automatic match".
+  - End state: from `SetupForm` with four free buttons to a welcome wizard for first-timers, a Linear-style free mode for daily use, recent projects screen, full-screen Settings with multi-source catalog management, and a built-in catalog that ships with the binary. 642 tests across the engine, CLI and desktop.
+
+- **Git hooks as a catalog artifact (`CLAUDEPERS-1` umbrella)** — first artifact type that lives outside `.claude/` and first with an executable bit. Shipped across 5 planned sub-phases + 3 smoke-driven fixes:
   - **1.A–1.E** (`b41e576` → `d3d206a`): engine domain (`GitHook`, closed `HookName` enum, `Preset.gitHookNames`), `resolveExtends` accumulation + dedupe (no `ConflictingHookNameError` needed — id === hookName), Familia A drift, new `GitConfigPort` separated from `WriterPort`, real adapters with `chmod 0o755` and `ChildProcessGitConfig`, lockfile gains its own `gitHooks` section, YAML field `git-hooks:` (decision closed in post-1.D review), CLI report + Rust IPC + desktop Card. Three concrete hooks in `base`: `commit-msg` (Conventional Commits), `pre-commit` (`pnpm lint`), `pre-push` (`pnpm -r test`).
   - `9f4dca5` fix(desktop) `CLAUDEPERS-11`: smoke surfaced that the success banner counted git-hooks toward "N artifacts written to .claude/" — split into separate counters per destination.
   - `646ce5c` refactor(core): renamed `FsProjectInspector` to `LocalProjectInspector` to honestly cover the subprocess method added next.
@@ -261,3 +186,5 @@ renumbered.
 
 - [`docs/adr/0001-pr-creator-provider-coupling.md`](adr/0001-pr-creator-provider-coupling.md) — gates two Deferred items (overrides in preset, provider-agnostic `pr-creator`).
 - [`docs/adr/0002-node-crypto-in-domain.md`](adr/0002-node-crypto-in-domain.md) — accepted trade-off, no roadmap impact.
+- [`docs/adr/0003-multi-source-catalog-migration.md`](adr/0003-multi-source-catalog-migration.md) — closed Deferred 15 by way of `CLAUDEPERS-14`.
+- [`docs/adr/0004-catalog-sources-as-composition-concern.md`](adr/0004-catalog-sources-as-composition-concern.md) — locks where the multi-source plurality lives across layers.
