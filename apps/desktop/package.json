@@ -15,6 +15,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@claude-fw/cli": "workspace:*",
     "@claude-fw/core": "workspace:*",
     "@tauri-apps/api": "^2.1.1",
     "@tauri-apps/plugin-dialog": "^2.0.1",

@@ -491,3 +491,107 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+/// Contract tests guarding the JSON shape emitted by the CLI against the
+/// Rust structs that deserialize it (ADR-0005). Each test pins one
+/// command's report by way of a representative fixture. When a CLI field
+/// changes shape, the matching test fails at `cargo test` time, prompting
+/// a one-line struct update.
+///
+/// The fixtures are intentionally small and hand-written rather than
+/// captured live: the point is to encode "what does this command's JSON
+/// look like" so a sweep through CLI-side type changes surfaces here.
+#[cfg(test)]
+mod contract_tests {
+    use super::*;
+
+    #[test]
+    fn install_report_deserializes() {
+        let json = r#"{
+            "presetName": "base",
+            "agents": ["docs-manager"],
+            "skills": ["commit-style"],
+            "commands": [],
+            "settings": false,
+            "instructions": true,
+            "gitHooks": ["commit-msg", "pre-commit"],
+            "gitConfigActivated": true,
+            "gitConfigCurrent": ".githooks",
+            "gitConfigSkippedReason": null
+        }"#;
+        let parsed: InstallReport = serde_json::from_str(json).expect("install report");
+        assert_eq!(parsed.preset_name, "base");
+        assert_eq!(parsed.git_hooks.len(), 2);
+        assert!(parsed.git_config_activated);
+        assert_eq!(parsed.git_config_current.as_deref(), Some(".githooks"));
+        assert!(parsed.git_config_skipped_reason.is_none());
+    }
+
+    #[test]
+    fn status_report_deserializes() {
+        let json = r#"{
+            "presetName": "base",
+            "hasLockfile": true,
+            "added": [{"type": "agent", "id": "pr-creator"}],
+            "updated": [{"type": "skill", "id": "x", "oldSha": "a", "newSha": "b"}],
+            "removed": [],
+            "unchanged": [],
+            "settings": {"kind": "unchanged"},
+            "instructions": {"kind": "updated", "oldSha": "a", "newSha": "b"}
+        }"#;
+        let parsed: StatusReport = serde_json::from_str(json).expect("status report");
+        assert_eq!(parsed.preset_name, "base");
+        assert!(parsed.has_lockfile);
+        assert_eq!(parsed.added.len(), 1);
+        assert_eq!(parsed.updated.len(), 1);
+    }
+
+    #[test]
+    fn catalog_report_deserializes() {
+        let json = r#"{
+            "presets": [{
+                "name": "base",
+                "extends": [],
+                "agents": ["a"],
+                "skills": ["s"],
+                "commands": [],
+                "instructions": [],
+                "gitHooks": ["pre-commit"]
+            }],
+            "agents": [{"id": "a", "description": "Agent A"}],
+            "skills": [],
+            "commands": [],
+            "instructions": [],
+            "gitHooks": [{"hookName": "pre-commit"}]
+        }"#;
+        let parsed: CatalogReport = serde_json::from_str(json).expect("catalog report");
+        assert_eq!(parsed.presets.len(), 1);
+        assert_eq!(parsed.git_hooks.len(), 1);
+    }
+
+    #[test]
+    fn init_report_deserializes() {
+        let json = r#"{
+            "projectRoot": "/proj",
+            "presetName": "base",
+            "manifestPath": "/proj/.claude-fw.yaml"
+        }"#;
+        let parsed: InitReport = serde_json::from_str(json).expect("init report");
+        assert_eq!(parsed.project_root, "/proj");
+        assert_eq!(parsed.preset_name, "base");
+    }
+
+    #[test]
+    fn detect_stack_report_deserializes() {
+        let json = r#"{
+            "projectRoot": "/proj",
+            "matches": [
+                {"preset": "tauri-rust-react", "specificity": 2},
+                {"preset": "base", "specificity": 1}
+            ]
+        }"#;
+        let parsed: DetectStackReport = serde_json::from_str(json).expect("detect-stack report");
+        assert_eq!(parsed.matches.len(), 2);
+        assert_eq!(parsed.matches[0].specificity, 2);
+    }
+}

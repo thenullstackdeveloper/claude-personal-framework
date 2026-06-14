@@ -6,6 +6,18 @@
   "bin": {
     "claude-fw": "./dist/index.js"
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./reports": {
+      "types": "./dist/reports.d.ts",
+      "default": "./dist/reports.js"
+    }
+  },
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",

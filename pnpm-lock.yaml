@@ -20,6 +20,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@claude-fw/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@claude-fw/core':
         specifier: workspace:*
         version: link:../../packages/core
