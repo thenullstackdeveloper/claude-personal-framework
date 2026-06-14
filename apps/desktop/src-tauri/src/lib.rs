@@ -173,17 +173,27 @@ fn extract_builtin_catalog() -> Result<PathBuf, CliError> {
     Ok(target)
 }
 
-fn run_cli(args: &[&str]) -> Result<String, CliError> {
+/// Runs the CLI with the given args, automatically wiring catalog source
+/// precedence: env (handled by the CLI itself) > extra_folders (user-provided
+/// from Settings) > whatever appears inside `args` (typically a legacy
+/// `--framework <path>` flag) > the embedded built-in catalog.
+///
+/// `--catalog-folder` flags are processed in argv order by the CLI's
+/// `buildCatalogPort`, so the order here matters: user folders FIRST (higher
+/// precedence), built-in LAST (lowest).
+fn run_cli(extra_folders: &[String], args: &[&str]) -> Result<String, CliError> {
     let builtin = builtin_catalog_path()?;
     let builtin_str = builtin.to_string_lossy().into_owned();
     let cli = cli_path();
-    // Inject the built-in catalog as the lowest-precedence source. The CLI
-    // composition root resolves precedence env > --catalog-folder > builtin,
-    // so user-passed catalog folders still win on collisions.
-    let mut full_args: Vec<&str> = Vec::with_capacity(args.len() + 2);
+
+    let mut full_args: Vec<&str> = Vec::with_capacity(args.len() + extra_folders.len() * 2 + 2);
+    for folder in extra_folders {
+        full_args.push("--catalog-folder");
+        full_args.push(folder);
+    }
+    full_args.extend_from_slice(args);
     full_args.push("--catalog-folder");
     full_args.push(&builtin_str);
-    full_args.extend_from_slice(args);
 
     let output = Command::new("node")
         .arg(&cli)
@@ -219,8 +229,18 @@ fn parse_cli_json<T: for<'de> Deserialize<'de>>(label: &str, raw: &str) -> Resul
 }
 
 #[tauri::command]
-fn list_catalog(framework_root: String) -> Result<CatalogReport, CliError> {
-    let output = run_cli(&["list", "--framework", &framework_root, "--json"])?;
+fn list_catalog(
+    framework_root: Option<String>,
+    catalog_folders: Option<Vec<String>>,
+) -> Result<CatalogReport, CliError> {
+    let folders = catalog_folders.unwrap_or_default();
+    let framework = framework_root.unwrap_or_default();
+    let mut args: Vec<&str> = vec!["list", "--json"];
+    if !framework.is_empty() {
+        args.push("--framework");
+        args.push(&framework);
+    }
+    let output = run_cli(&folders, &args)?;
     parse_cli_json("list", &output)
 }
 
@@ -236,7 +256,7 @@ struct PathDetection {
 // CLI, same as every other command.
 #[tauri::command]
 fn detect_path(path: String) -> Result<PathDetection, CliError> {
-    let output = run_cli(&["detect", "--path", &path, "--json"])?;
+    let output = run_cli(&[], &["detect", "--path", &path, "--json"])?;
     parse_cli_json("detect", &output)
 }
 
@@ -261,22 +281,17 @@ struct DetectStackReport {
 #[tauri::command]
 fn detect_stack(
     framework_root: Option<String>,
+    catalog_folders: Option<Vec<String>>,
     project_root: String,
 ) -> Result<DetectStackReport, CliError> {
+    let folders = catalog_folders.unwrap_or_default();
     let framework = framework_root.unwrap_or_default();
-    let args: Vec<&str> = if framework.is_empty() {
-        vec!["detect-stack", "--project", &project_root, "--json"]
-    } else {
-        vec![
-            "detect-stack",
-            "--framework",
-            &framework,
-            "--project",
-            &project_root,
-            "--json",
-        ]
-    };
-    let output = run_cli(&args)?;
+    let mut args: Vec<&str> = vec!["detect-stack", "--project", &project_root, "--json"];
+    if !framework.is_empty() {
+        args.push("--framework");
+        args.push(&framework);
+    }
+    let output = run_cli(&folders, &args)?;
     parse_cli_json("detect-stack", &output)
 }
 
@@ -290,33 +305,43 @@ struct InitReport {
 
 #[tauri::command]
 fn initialize(
-    framework_root: String,
+    framework_root: Option<String>,
+    catalog_folders: Option<Vec<String>>,
     project_root: String,
     preset_name: String,
 ) -> Result<InitReport, CliError> {
-    let output = run_cli(&[
+    let folders = catalog_folders.unwrap_or_default();
+    let framework = framework_root.unwrap_or_default();
+    let mut args: Vec<&str> = vec![
         "init",
-        "--framework",
-        &framework_root,
         "--project",
         &project_root,
         "--preset",
         &preset_name,
         "--json",
-    ])?;
+    ];
+    if !framework.is_empty() {
+        args.push("--framework");
+        args.push(&framework);
+    }
+    let output = run_cli(&folders, &args)?;
     parse_cli_json("init", &output)
 }
 
 #[tauri::command]
-fn install(framework_root: String, project_root: String) -> Result<InstallReport, CliError> {
-    let output = run_cli(&[
-        "install",
-        "--framework",
-        &framework_root,
-        "--project",
-        &project_root,
-        "--json",
-    ])?;
+fn install(
+    framework_root: Option<String>,
+    catalog_folders: Option<Vec<String>>,
+    project_root: String,
+) -> Result<InstallReport, CliError> {
+    let folders = catalog_folders.unwrap_or_default();
+    let framework = framework_root.unwrap_or_default();
+    let mut args: Vec<&str> = vec!["install", "--project", &project_root, "--json"];
+    if !framework.is_empty() {
+        args.push("--framework");
+        args.push(&framework);
+    }
+    let output = run_cli(&folders, &args)?;
     parse_cli_json("install", &output)
 }
 
@@ -411,15 +436,19 @@ fn ensure_git_repo(path: String) -> Result<(), CliError> {
 }
 
 #[tauri::command]
-fn status(framework_root: String, project_root: String) -> Result<StatusReport, CliError> {
-    let output = run_cli(&[
-        "status",
-        "--framework",
-        &framework_root,
-        "--project",
-        &project_root,
-        "--json",
-    ])?;
+fn status(
+    framework_root: Option<String>,
+    catalog_folders: Option<Vec<String>>,
+    project_root: String,
+) -> Result<StatusReport, CliError> {
+    let folders = catalog_folders.unwrap_or_default();
+    let framework = framework_root.unwrap_or_default();
+    let mut args: Vec<&str> = vec!["status", "--project", &project_root, "--json"];
+    if !framework.is_empty() {
+        args.push("--framework");
+        args.push(&framework);
+    }
+    let output = run_cli(&folders, &args)?;
     parse_cli_json("status", &output)
 }
 

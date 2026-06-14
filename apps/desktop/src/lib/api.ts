@@ -76,12 +76,19 @@ export type InstallReport = {
   readonly gitConfigSkippedReason: 'not-a-git-repo' | null;
 };
 
-export const listCatalog = (frameworkRoot: string): Promise<CatalogReport> => {
-  return invoke<CatalogReport>('list_catalog', { frameworkRoot });
+export const listCatalog = (
+  frameworkRoot: string,
+  catalogFolders?: readonly string[],
+): Promise<CatalogReport> => {
+  return invoke<CatalogReport>('list_catalog', { frameworkRoot, catalogFolders });
 };
 
-export const install = (frameworkRoot: string, projectRoot: string): Promise<InstallReport> => {
-  return invoke<InstallReport>('install', { frameworkRoot, projectRoot });
+export const install = (
+  frameworkRoot: string,
+  projectRoot: string,
+  catalogFolders?: readonly string[],
+): Promise<InstallReport> => {
+  return invoke<InstallReport>('install', { frameworkRoot, projectRoot, catalogFolders });
 };
 
 export type PathDetection = {
@@ -122,8 +129,12 @@ export type StatusReport = {
   readonly instructions: StatusSingleton;
 };
 
-export const status = (frameworkRoot: string, projectRoot: string): Promise<StatusReport> => {
-  return invoke<StatusReport>('status', { frameworkRoot, projectRoot });
+export const status = (
+  frameworkRoot: string,
+  projectRoot: string,
+  catalogFolders?: readonly string[],
+): Promise<StatusReport> => {
+  return invoke<StatusReport>('status', { frameworkRoot, projectRoot, catalogFolders });
 };
 
 export type InitReport = {
@@ -136,8 +147,14 @@ export const initialize = (
   frameworkRoot: string,
   projectRoot: string,
   presetName: string,
+  catalogFolders?: readonly string[],
 ): Promise<InitReport> => {
-  return invoke<InitReport>('initialize', { frameworkRoot, projectRoot, presetName });
+  return invoke<InitReport>('initialize', {
+    frameworkRoot,
+    projectRoot,
+    presetName,
+    catalogFolders,
+  });
 };
 
 export const ensureGitRepo = (path: string): Promise<void> => {
@@ -172,6 +189,11 @@ export type DetectStackReport = {
 export const detectStack = (
   projectRoot: string,
   frameworkRoot?: string,
+  catalogFolders?: readonly string[],
 ): Promise<DetectStackReport> => {
-  return invoke<DetectStackReport>('detect_stack', { frameworkRoot, projectRoot });
+  return invoke<DetectStackReport>('detect_stack', {
+    frameworkRoot,
+    projectRoot,
+    catalogFolders,
+  });
 };
