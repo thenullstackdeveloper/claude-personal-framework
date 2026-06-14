@@ -5,6 +5,7 @@ import { InstallReport } from './components/install-report';
 import { ProjectHeader } from './components/project-header';
 import { RecentProjectsScreen } from './components/recent-projects-screen';
 import { SettingsPanel } from './components/settings-panel';
+import { WelcomeWizard } from './components/welcome-wizard';
 import { useActiveProject } from './hooks/use-active-project';
 import { useAutoDismissSuccess } from './hooks/use-auto-dismiss';
 import { useBuiltinCatalogPref } from './hooks/use-builtin-catalog-pref';
@@ -115,10 +116,24 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = (): void => setSettingsOpen(true);
   const closeSettings = (): void => setSettingsOpen(false);
+  // Local-session "I clicked Skip" so the wizard does not re-render
+  // immediately. The persisted flag stays false so the wizard reappears
+  // on the next app launch, giving the user another shot.
+  const [wizardSkipped, setWizardSkipped] = useState(false);
   const handleRestartWizard = (): void => {
     welcomeWizard.reset();
+    setWizardSkipped(false);
     closeSettings();
   };
+  const handleWizardComplete = (path: string, _presetName: string): void => {
+    welcomeWizard.markCompleted();
+    setActiveProject({ path });
+    // Recent is updated automatically when init/install fire onSuccess.
+  };
+  const handleWizardSkip = (): void => {
+    setWizardSkipped(true);
+  };
+  const showWizard = !welcomeWizard.completed && !wizardSkipped && !activeProject;
 
   const handleBrowse = async (): Promise<void> => {
     const selected = await browseProject(activeProject?.path ?? '');
@@ -126,10 +141,13 @@ function App() {
     setActiveProject({ path: selected });
   };
 
-  // "New project (open wizard)" — until C8/C9 land the wizard, this falls
-  // through to a regular browse so users can still pick a path.
+  // "New project (open wizard)" — clears the active project and resets the
+  // local skip so the wizard takes over. The persisted completion flag is
+  // left alone (the user explicitly asked for the wizard, not a reset).
   const handleNewProject = (): void => {
-    void handleBrowse();
+    setActiveProject(null);
+    setWizardSkipped(false);
+    welcomeWizard.reset();
   };
 
   const handleSelectRecent = (entry: RecentProject): void => {
@@ -164,7 +182,17 @@ function App() {
         />
       )}
       <div className="max-w-5xl mx-auto p-6 space-y-6">
-        {!activeProject ? (
+        {showWizard ? (
+          <WelcomeWizard
+            catalog={catalog.catalog}
+            catalogError={catalog.error}
+            catalogFolders={userCatalogFolders}
+            allowBuiltin={useBuiltin}
+            onComplete={handleWizardComplete}
+            onSkip={handleWizardSkip}
+            onOpenSettings={openSettings}
+          />
+        ) : !activeProject ? (
           <RecentProjectsScreen
             recent={recent}
             onSelectRecent={handleSelectRecent}
