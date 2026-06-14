@@ -3,14 +3,11 @@ import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ProjectInspectorPort } from '../../application/ports/project-inspector.port.js';
 import type { HookName } from '../../domain/model/identifiers.js';
+import { isErrnoException } from './fs-helpers.js';
 
 const CLAUDE_DIR = '.claude';
 const INSTRUCTIONS_FILENAME = 'CLAUDE.md';
 const GITHOOKS_DIR = '.githooks';
-
-const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
-  return err instanceof Error && 'code' in err;
-};
 
 export class LocalProjectInspector implements ProjectInspectorPort {
   constructor(public readonly projectRoot: string) {}

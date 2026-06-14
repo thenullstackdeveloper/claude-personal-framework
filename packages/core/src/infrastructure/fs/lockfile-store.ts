@@ -3,12 +3,9 @@ import { join } from 'node:path';
 import type { LockfileStorePort } from '../../application/ports/lockfile-store.port.js';
 import type { Lockfile } from '../../domain/model/lockfile.js';
 import { parseLockfile, serializeLockfile } from '../json/parse-lockfile.js';
+import { isErrnoException } from './fs-helpers.js';
 
 const LOCKFILE_FILENAME = '.claude-fw.lock.json';
-
-const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
-  return err instanceof Error && 'code' in err;
-};
 
 export class LockfileStore implements LockfileStorePort {
   constructor(public readonly projectRoot: string) {}

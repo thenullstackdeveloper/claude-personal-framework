@@ -28,14 +28,11 @@ import type { Preset } from '../../domain/model/preset.js';
 import { Skill } from '../../domain/model/skill.js';
 import { extractFrontmatterDescription } from '../markdown/frontmatter.js';
 import { parsePreset } from '../yaml/parse-preset.js';
+import { isErrnoException } from './fs-helpers.js';
 
 const PRESET_EXT = '.yaml';
 const ARTIFACT_EXT = '.md';
 const GITHOOKS_SUBDIR = 'git-hooks';
-
-const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
-  return err instanceof Error && 'code' in err;
-};
 
 const readArtifactFile = async (path: string, label: string): Promise<string> => {
   try {

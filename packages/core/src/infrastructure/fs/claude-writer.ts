@@ -8,6 +8,7 @@ import type { AgentId, CommandId, HookName, SkillId } from '../../domain/model/i
 import type { Instructions } from '../../domain/model/instructions.js';
 import type { Settings } from '../../domain/model/settings.js';
 import type { Skill } from '../../domain/model/skill.js';
+import { isErrnoException } from './fs-helpers.js';
 
 const CLAUDE_DIR = '.claude';
 const AGENTS_SUBDIR = 'agents';
@@ -18,10 +19,6 @@ const SETTINGS_FILENAME = 'settings.json';
 const INSTRUCTIONS_FILENAME = 'CLAUDE.md';
 const GITHOOKS_DIR = '.githooks';
 const HOOK_EXEC_MODE = 0o755;
-
-const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
-  return err instanceof Error && 'code' in err;
-};
 
 export class ClaudeWriter implements WriterPort {
   constructor(public readonly projectRoot: string) {}

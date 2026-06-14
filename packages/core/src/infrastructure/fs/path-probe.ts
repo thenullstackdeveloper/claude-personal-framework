@@ -1,10 +1,7 @@
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PathKind, PathProbePort } from '../../application/ports/path-probe.port.js';
-
-const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
-  return err instanceof Error && 'code' in err;
-};
+import { isErrnoException } from './fs-helpers.js';
 
 export class FsPathProbe implements PathProbePort {
   async inspect(base: string, segment: string): Promise<PathKind> {

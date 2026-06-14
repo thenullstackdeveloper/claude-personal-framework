@@ -4,12 +4,9 @@ import type { ManifestStorePort } from '../../application/ports/manifest-store.p
 import type { ProjectManifest } from '../../domain/model/project-manifest.js';
 import { parseProjectManifest } from '../yaml/parse-project-manifest.js';
 import { serializeProjectManifest } from '../yaml/serialize-project-manifest.js';
+import { isErrnoException } from './fs-helpers.js';
 
 const MANIFEST_FILENAME = '.claude-fw.yaml';
-
-const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
-  return err instanceof Error && 'code' in err;
-};
 
 /**
  * Filesystem adapter for the project manifest. The project root is

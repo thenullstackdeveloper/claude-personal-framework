@@ -2,10 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { StackInspectorPort } from '../../application/ports/stack-inspector.port.js';
 import type { ProjectInspection } from '../../domain/model/project-inspection.js';
-
-const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
-  return err instanceof Error && 'code' in err;
-};
+import { isErrnoException } from './fs-helpers.js';
 
 const readDeps = (raw: unknown, field: string): readonly string[] => {
   if (typeof raw !== 'object' || raw === null) return [];
