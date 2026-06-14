@@ -1,197 +1,229 @@
-import { Sparkles } from 'lucide-react';
-import { CatalogView } from './components/catalog-view';
-import { ErrorBanner } from './components/error-banner';
+import { useEffect, useRef, useState } from 'react';
+import { ActionsCard, CatalogCard, StatusCard } from './components/free-mode-cards';
 import { InitReport } from './components/init-report';
 import { InstallReport } from './components/install-report';
-import { SetupForm } from './components/setup-form';
-import { StatusView } from './components/status-view';
+import { ProjectHeader } from './components/project-header';
+import { RecentProjectsScreen } from './components/recent-projects-screen';
+import { useActiveProject } from './hooks/use-active-project';
+import { useAutoDismissSuccess } from './hooks/use-auto-dismiss';
 import { useCatalogFlow } from './hooks/use-catalog-flow';
 import { useDetectPath } from './hooks/use-detect-path';
 import { useInitFlow } from './hooks/use-init-flow';
 import { useInstallFlow } from './hooks/use-install-flow';
 import { usePathPicker } from './hooks/use-path-picker';
+import { type RecentProject, useRecentProjects } from './hooks/use-recent-projects';
 import { useStatusFlow } from './hooks/use-status-flow';
-import { detectPath } from './lib/api';
-import { usePersistedState } from './lib/persisted-state';
+import { useUserCatalogFolders } from './hooks/use-user-catalog-folders';
 
 function App() {
-  const [frameworkRoot, setFrameworkRoot] = usePersistedState('cfw.frameworkRoot', '');
-  const [projectRoot, setProjectRoot] = usePersistedState('cfw.projectRoot', '');
+  const { activeProject, setActiveProject } = useActiveProject();
+  const { recent, add: addRecent, remove: removeRecent } = useRecentProjects();
+  const { folders: userCatalogFolders } = useUserCatalogFolders();
+  const { browseProject } = usePathPicker();
 
-  const {
-    catalog,
-    error: catalogError,
-    loading: loadingCatalog,
-    load: handleLoadCatalog,
-    dismissError: dismissCatalogError,
-  } = useCatalogFlow(frameworkRoot);
+  // Sub-phase 4 still embeds the built-in catalog as the only Tauri-side
+  // fallback. There's no user-provided framework root anymore — Settings (B7)
+  // will expose a --no-builtin toggle in a follow-up; until then, frameworkRoot
+  // stays empty and only user-provided folders + the built-in are aggregated.
+  const frameworkRoot = '';
+  const projectRoot = activeProject?.path ?? '';
 
+  const catalog = useCatalogFlow(frameworkRoot, userCatalogFolders);
   const { detection: projectDetection, refresh: refreshProjectDetection } =
     useDetectPath(projectRoot);
 
-  const {
-    report: statusReport,
-    error: statusError,
-    checking: checkingStatus,
-    check: handleCheckStatus,
-    checkSilently: refreshStatusSilently,
-    dismiss: dismissStatus,
-  } = useStatusFlow({ frameworkRoot, projectRoot });
-
-  const {
-    outcome: installOutcome,
-    installing,
-    install: handleInstall,
-    dismiss: dismissInstallOutcome,
-  } = useInstallFlow({
+  const status = useStatusFlow({
     frameworkRoot,
     projectRoot,
-    statusReport,
-    onSuccess: refreshStatusSilently,
+    catalogFolders: userCatalogFolders,
   });
 
-  const {
-    outcome: initOutcome,
-    initializing,
-    initialize: handleInitialize,
-    dismiss: dismissInitOutcome,
-  } = useInitFlow({
+  const install = useInstallFlow({
     frameworkRoot,
     projectRoot,
+    catalogFolders: userCatalogFolders,
+    statusReport: status.report,
+    onSuccess: status.checkSilently,
+  });
+
+  const init = useInitFlow({
+    frameworkRoot,
+    projectRoot,
+    catalogFolders: userCatalogFolders,
     onSuccess: refreshProjectDetection,
   });
 
-  const { browseFramework, browseProject } = usePathPicker();
+  // Auto-dismiss success outcomes after 5s (decision D1). Errors stay sticky.
+  useAutoDismissSuccess(install.outcome, install.dismiss, 5000);
+  useAutoDismissSuccess(init.outcome, init.dismiss, 5000);
 
-  const handleBrowseFramework = async () => {
-    const selected = await browseFramework(frameworkRoot);
-    if (selected === null) return;
-    setFrameworkRoot(selected);
+  // Auto-load catalog on mount and whenever sources change. `load`'s ref
+  // captures userCatalogFolders via its own useCallback dep, so watching
+  // the function reference here is enough — biome can verify the chain.
+  const loadCatalog = catalog.load;
+  useEffect(() => {
+    void loadCatalog();
+  }, [loadCatalog]);
 
-    if (!projectRoot) {
-      try {
-        const detection = await detectPath(selected);
-        if (detection.isProject) setProjectRoot(selected);
-      } catch {
-        // ignore — detection is a convenience, not required
-      }
+  // Cross-flow reset on project switch (CLAUDEPERS-23): wipe outcomes from
+  // the previous project so they don't bleed across, and silently re-check
+  // status when entering a new project (so the Status card refreshes
+  // without the user pressing Check now).
+  const prevPathRef = useRef<string | null>(null);
+  const statusCheckSilently = status.checkSilently;
+  const statusDismiss = status.dismiss;
+  const installDismiss = install.dismiss;
+  const initDismiss = init.dismiss;
+  useEffect(() => {
+    const current = activeProject?.path ?? null;
+    if (current === prevPathRef.current) return;
+    statusDismiss();
+    installDismiss();
+    initDismiss();
+    prevPathRef.current = current;
+    if (current) {
+      void statusCheckSilently();
     }
+  }, [activeProject, statusDismiss, installDismiss, initDismiss, statusCheckSilently]);
+
+  // Recent on success (decision D6) — only add after init/install lands green.
+  useEffect(() => {
+    if (install.outcome.status === 'success' && activeProject) {
+      addRecent({
+        path: activeProject.path,
+        presetName: install.outcome.data.presetName,
+      });
+    }
+  }, [install.outcome, activeProject, addRecent]);
+  useEffect(() => {
+    if (init.outcome.status === 'success' && activeProject) {
+      addRecent({
+        path: activeProject.path,
+        presetName: init.outcome.presetName,
+      });
+    }
+  }, [init.outcome, activeProject, addRecent]);
+
+  // Settings panel placeholder — full SettingsPanel lands in B7. For now the
+  // button shows a no-op alert so the wiring is visible and the user knows
+  // the surface exists.
+  const [, setSettingsOpen] = useState(false);
+  const openSettings = (): void => {
+    setSettingsOpen(true);
+    // Placeholder for B7.
+    window.alert('Settings panel — coming in B7 (CLAUDEPERS-22).');
   };
 
-  const handleBrowseProject = async () => {
-    const selected = await browseProject(projectRoot);
+  const handleBrowse = async (): Promise<void> => {
+    const selected = await browseProject(activeProject?.path ?? '');
     if (selected === null) return;
-    setProjectRoot(selected);
-
-    if (!frameworkRoot) {
-      try {
-        const detection = await detectPath(selected);
-        if (detection.isFramework) setFrameworkRoot(selected);
-      } catch {
-        // ignore
-      }
-    }
+    setActiveProject({ path: selected });
   };
 
-  const hasAnyPath = frameworkRoot !== '' || projectRoot !== '';
-  const showEmptyState =
-    !hasAnyPath &&
-    !catalog &&
-    !statusReport &&
-    installOutcome.status === 'idle' &&
-    initOutcome.status === 'idle';
+  // "New project (open wizard)" — until C8/C9 land the wizard, this falls
+  // through to a regular browse so users can still pick a path.
+  const handleNewProject = (): void => {
+    void handleBrowse();
+  };
+
+  const handleSelectRecent = (entry: RecentProject): void => {
+    setActiveProject({ path: entry.path });
+  };
+
+  const handleRemoveRecent = (path: string): void => {
+    removeRecent(path);
+  };
+
+  const handleInitialize = (): void => {
+    // B6 picks the first preset in the catalog as the default — the wizard
+    // (C8) will show a real selector with detect-stack. Until then this is
+    // a stop-gap that mirrors the previous SetupForm initialize button.
+    const firstPreset = catalog.catalog?.presets[0]?.name ?? 'base';
+    void init.initialize(firstPreset);
+  };
+
+  const hasManifest = projectDetection?.isProject === true;
+  const canInitialize = projectDetection?.isProject === false;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="max-w-5xl mx-auto p-6 space-y-6">
-        <header className="space-y-1.5 pb-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Claude Framework</h1>
-          <p className="text-sm text-zinc-400">
-            Install reusable Claude Code agents, skills and commands into any project.
-          </p>
-        </header>
-
-        <SetupForm
-          frameworkRoot={frameworkRoot}
-          projectRoot={projectRoot}
-          onFrameworkRootChange={setFrameworkRoot}
-          onProjectRootChange={setProjectRoot}
-          onBrowseFramework={handleBrowseFramework}
-          onBrowseProject={handleBrowseProject}
-          onLoadCatalog={handleLoadCatalog}
-          onCheckStatus={handleCheckStatus}
-          onInstall={handleInstall}
-          onInitialize={handleInitialize}
-          loadingCatalog={loadingCatalog}
-          checkingStatus={checkingStatus}
-          installing={installing}
-          initializing={initializing}
-          projectDetection={projectDetection}
-          presets={catalog?.presets ?? []}
-        />
-
-        {initOutcome.status === 'success' && (
-          <InitReport
-            status="success"
-            data={{
-              presetName: initOutcome.presetName,
-              manifestPath: initOutcome.manifestPath,
-            }}
-            onDismiss={dismissInitOutcome}
+        {!activeProject ? (
+          <RecentProjectsScreen
+            recent={recent}
+            onSelectRecent={handleSelectRecent}
+            onRemoveRecent={handleRemoveRecent}
+            onBrowse={handleBrowse}
+            onNewProject={handleNewProject}
+            onSettings={openSettings}
           />
-        )}
-        {initOutcome.status === 'error' && (
-          <InitReport status="error" error={initOutcome.error} onDismiss={dismissInitOutcome} />
-        )}
+        ) : (
+          <>
+            <ProjectHeader
+              activeProject={activeProject}
+              presetName={status.report?.presetName ?? null}
+              recent={recent.filter((r) => r.path !== activeProject.path)}
+              onSelectRecent={handleSelectRecent}
+              onBrowse={handleBrowse}
+              onNewProject={handleNewProject}
+              onSettings={openSettings}
+            />
 
-        {installOutcome.status === 'success' && (
-          <InstallReport
-            status="success"
-            data={installOutcome.data}
-            onDismiss={dismissInstallOutcome}
-          />
+            <div className="grid grid-cols-3 gap-4">
+              <StatusCard
+                report={status.report}
+                checking={status.checking}
+                hasManifest={hasManifest}
+                onCheck={status.check}
+              />
+              <CatalogCard
+                catalog={catalog.catalog}
+                loading={catalog.loading}
+                onLoad={catalog.load}
+              />
+              <ActionsCard
+                hasManifest={hasManifest}
+                installing={install.installing}
+                initializing={init.initializing}
+                canInitialize={canInitialize}
+                onInstall={install.install}
+                onInitialize={handleInitialize}
+              />
+            </div>
+
+            {/* Ephemeral outcomes (D1): success auto-dismisses in 5s, errors sticky. */}
+            {init.outcome.status === 'success' && (
+              <InitReport
+                status="success"
+                data={{
+                  presetName: init.outcome.presetName,
+                  manifestPath: init.outcome.manifestPath,
+                }}
+                onDismiss={init.dismiss}
+              />
+            )}
+            {init.outcome.status === 'error' && (
+              <InitReport status="error" error={init.outcome.error} onDismiss={init.dismiss} />
+            )}
+            {install.outcome.status === 'success' && (
+              <InstallReport
+                status="success"
+                data={install.outcome.data}
+                onDismiss={install.dismiss}
+              />
+            )}
+            {install.outcome.status === 'error' && (
+              <InstallReport
+                status="error"
+                error={install.outcome.error}
+                onDismiss={install.dismiss}
+                onRetry={install.install}
+              />
+            )}
+          </>
         )}
-        {installOutcome.status === 'error' && (
-          <InstallReport
-            status="error"
-            error={installOutcome.error}
-            onDismiss={dismissInstallOutcome}
-            onRetry={handleInstall}
-          />
-        )}
-
-        {statusError && (
-          <ErrorBanner title="Status check failed" error={statusError} onDismiss={dismissStatus} />
-        )}
-
-        {statusReport && <StatusView report={statusReport} onDismiss={dismissStatus} />}
-
-        {catalogError && (
-          <ErrorBanner
-            title="Catalog load failed"
-            error={catalogError}
-            onDismiss={dismissCatalogError}
-          />
-        )}
-
-        {catalog && <CatalogView report={catalog} />}
-
-        {showEmptyState && <EmptyState />}
       </div>
     </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <section className="bg-zinc-900/50 border border-dashed border-zinc-800 rounded-lg p-8 text-center space-y-2">
-      <Sparkles className="w-8 h-8 text-zinc-600 mx-auto" />
-      <h2 className="text-sm font-semibold text-zinc-400">No paths configured yet</h2>
-      <p className="text-xs text-zinc-500 max-w-md mx-auto">
-        Pick a framework root and a project root above to load the catalog, check status against the
-        last install, initialize a brand-new project, or install a preset.
-      </p>
-    </section>
   );
 }
 

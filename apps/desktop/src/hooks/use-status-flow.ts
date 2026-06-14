@@ -21,9 +21,11 @@ import { type CliError, type StatusReport, status as fetchStatus, toCliError } f
 export const useStatusFlow = ({
   frameworkRoot,
   projectRoot,
+  catalogFolders,
 }: {
   readonly frameworkRoot: string;
   readonly projectRoot: string;
+  readonly catalogFolders?: readonly string[];
 }): {
   report: StatusReport | null;
   error: CliError | null;
@@ -40,7 +42,7 @@ export const useStatusFlow = ({
     setChecking(true);
     setError(null);
     try {
-      const data = await fetchStatus(frameworkRoot, projectRoot);
+      const data = await fetchStatus(frameworkRoot, projectRoot, catalogFolders);
       setReport(data);
     } catch (e) {
       setReport(null);
@@ -48,16 +50,16 @@ export const useStatusFlow = ({
     } finally {
       setChecking(false);
     }
-  }, [frameworkRoot, projectRoot]);
+  }, [frameworkRoot, projectRoot, catalogFolders]);
 
   const checkSilently = useCallback(async () => {
     try {
-      const data = await fetchStatus(frameworkRoot, projectRoot);
+      const data = await fetchStatus(frameworkRoot, projectRoot, catalogFolders);
       setReport(data);
     } catch {
       // best-effort: leave report and error untouched
     }
-  }, [frameworkRoot, projectRoot]);
+  }, [frameworkRoot, projectRoot, catalogFolders]);
 
   const dismiss = useCallback(() => {
     setReport(null);

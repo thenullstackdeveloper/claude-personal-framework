@@ -41,10 +41,12 @@ export type InitOutcome =
 export const useInitFlow = ({
   frameworkRoot,
   projectRoot,
+  catalogFolders,
   onSuccess,
 }: {
   readonly frameworkRoot: string;
   readonly projectRoot: string;
+  readonly catalogFolders?: readonly string[];
   readonly onSuccess?: () => void;
 }): {
   outcome: InitOutcome;
@@ -60,7 +62,7 @@ export const useInitFlow = ({
       setInitializing(true);
       setOutcome({ status: 'idle' });
       try {
-        const data = await runInitialize(frameworkRoot, projectRoot, presetName);
+        const data = await runInitialize(frameworkRoot, projectRoot, presetName, catalogFolders);
         setOutcome({
           status: 'success',
           presetName: data.presetName,
@@ -103,7 +105,12 @@ export const useInitFlow = ({
           }
           try {
             await ensureGitRepo(folder);
-            const data = await runInitialize(frameworkRoot, projectRoot, presetName);
+            const data = await runInitialize(
+              frameworkRoot,
+              projectRoot,
+              presetName,
+              catalogFolders,
+            );
             setOutcome({
               status: 'success',
               presetName: data.presetName,
@@ -121,7 +128,7 @@ export const useInitFlow = ({
         setInitializing(false);
       }
     },
-    [frameworkRoot, projectRoot, onSuccess],
+    [frameworkRoot, projectRoot, catalogFolders, onSuccess],
   );
 
   const dismiss = useCallback(() => {

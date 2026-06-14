@@ -17,6 +17,7 @@ import { type CatalogReport, type CliError, listCatalog, toCliError } from '../l
  */
 export const useCatalogFlow = (
   frameworkRoot: string,
+  catalogFolders?: readonly string[],
 ): {
   catalog: CatalogReport | null;
   error: CliError | null;
@@ -32,7 +33,7 @@ export const useCatalogFlow = (
     setLoading(true);
     setError(null);
     try {
-      const data = await listCatalog(frameworkRoot);
+      const data = await listCatalog(frameworkRoot, catalogFolders);
       setCatalog(data);
     } catch (e) {
       setCatalog(null);
@@ -40,7 +41,7 @@ export const useCatalogFlow = (
     } finally {
       setLoading(false);
     }
-  }, [frameworkRoot]);
+  }, [frameworkRoot, catalogFolders]);
 
   const dismissError = useCallback(() => {
     setError(null);
