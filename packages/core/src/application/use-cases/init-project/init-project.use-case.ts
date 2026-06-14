@@ -2,7 +2,7 @@ import { PresetNotFoundError } from '../../../domain/errors/domain-error.js';
 import type { PresetName } from '../../../domain/model/identifiers.js';
 import type { ProjectManifest } from '../../../domain/model/project-manifest.js';
 import type { CatalogPort, ManifestStorePort, ProjectInspectorPort } from '../../ports/index.js';
-import { ManifestAlreadyExistsError, NotAGitRepoError } from './errors.js';
+import { ManifestAlreadyExistsError, NotAGitRepoError, ProjectDirMissingError } from './errors.js';
 
 export type InitProjectInput = {
   readonly presetName: PresetName;
@@ -30,6 +30,12 @@ export type InitProjectResult = {
  */
 export const initProject = async (input: InitProjectInput): Promise<InitProjectResult> => {
   const { presetName, projectRoot, catalog, manifestStore, inspector } = input;
+
+  // Probe the project dir BEFORE the git check — a missing folder cannot be
+  // a git working tree, and the typed error tells the UI how to recover.
+  if (!(await inspector.projectDirExists())) {
+    throw new ProjectDirMissingError(projectRoot);
+  }
 
   if (!(await inspector.isGitRepo())) {
     throw new NotAGitRepoError(projectRoot);

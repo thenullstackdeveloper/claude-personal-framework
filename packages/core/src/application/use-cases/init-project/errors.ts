@@ -29,3 +29,22 @@ export class NotAGitRepoError extends Error {
     this.projectRoot = projectRoot;
   }
 }
+
+/**
+ * Raised by `initProject` and `install` when the project root path does
+ * not exist on disk. Distinguishes "wrong / mistyped path" from "no
+ * manifest yet" — without this, a missing folder surfaces as a raw
+ * `ENOENT` from the next disk op, which the UI cannot react to. The
+ * desktop catches this code and offers to `mkdir -p`; the CLI surfaces
+ * it verbatim or auto-resolves with the `--create-dir` flag.
+ */
+export class ProjectDirMissingError extends Error {
+  readonly code = 'PROJECT_DIR_MISSING';
+  readonly projectRoot: string;
+
+  constructor(projectRoot: string) {
+    super(`the folder at "${projectRoot}" does not exist`);
+    this.name = 'ProjectDirMissingError';
+    this.projectRoot = projectRoot;
+  }
+}

@@ -69,6 +69,18 @@ describe('LocalProjectInspector', () => {
       expect(await inspector.isGitRepo()).toBe(true);
     });
   });
+
+  describe('projectDirExists', () => {
+    it('returns true when the project root path resolves on disk', async () => {
+      const inspector = new LocalProjectInspector(projectRoot);
+      expect(await inspector.projectDirExists()).toBe(true);
+    });
+
+    it('returns false when the path does not exist', async () => {
+      const inspector = new LocalProjectInspector(join(projectRoot, 'never-created'));
+      expect(await inspector.projectDirExists()).toBe(false);
+    });
+  });
 });
 
 const runGit = (args: readonly string[], cwd: string): Promise<void> =>

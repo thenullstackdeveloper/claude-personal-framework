@@ -16,7 +16,7 @@ import { Preset } from '../../../domain/model/preset.js';
 import type { ProjectManifest } from '../../../domain/model/project-manifest.js';
 import type { Skill } from '../../../domain/model/skill.js';
 import type { CatalogPort, ManifestStorePort, ProjectInspectorPort } from '../../ports/index.js';
-import { ManifestAlreadyExistsError, NotAGitRepoError } from './errors.js';
+import { ManifestAlreadyExistsError, NotAGitRepoError, ProjectDirMissingError } from './errors.js';
 import { initProject } from './init-project.use-case.js';
 
 class StubCatalog implements CatalogPort {
@@ -57,9 +57,15 @@ class StubCatalog implements CatalogPort {
 }
 
 class StubInspector implements ProjectInspectorPort {
-  constructor(private gitRepo = true) {}
+  constructor(
+    private gitRepo = true,
+    private dirExists = true,
+  ) {}
   setGitRepo(value: boolean): void {
     this.gitRepo = value;
+  }
+  setDirExists(value: boolean): void {
+    this.dirExists = value;
   }
   async claudeMdExists(): Promise<boolean> {
     return false;
@@ -69,6 +75,9 @@ class StubInspector implements ProjectInspectorPort {
   }
   async isGitRepo(): Promise<boolean> {
     return this.gitRepo;
+  }
+  async projectDirExists(): Promise<boolean> {
+    return this.dirExists;
   }
 }
 
@@ -244,6 +253,73 @@ describe('initProject use case', () => {
           }),
         ),
       ).rejects.toThrow(NotAGitRepoError);
+    });
+  });
+
+  describe('project-dir guard', () => {
+    it('throws ProjectDirMissingError when the project root does not exist on disk', async () => {
+      const catalog = presetCatalog('base');
+      const manifestStore = new InMemoryManifestStore();
+      const inspector = new StubInspector(true, false);
+
+      await expect(
+        initProject(
+          inputOf({
+            presetName: PresetName.of('base'),
+            projectRoot: '/tmp/does-not-exist',
+            catalog,
+            manifestStore,
+            inspector,
+          }),
+        ),
+      ).rejects.toThrow(ProjectDirMissingError);
+
+      expect(manifestStore.writeCalls).toBe(0);
+      expect(manifestStore.current).toBeNull();
+    });
+
+    it('attaches the projectRoot to ProjectDirMissingError so callers can name it', async () => {
+      const catalog = presetCatalog('base');
+      const manifestStore = new InMemoryManifestStore();
+      const inspector = new StubInspector(true, false);
+
+      try {
+        await initProject(
+          inputOf({
+            presetName: PresetName.of('base'),
+            projectRoot: '/tmp/missing-folder',
+            catalog,
+            manifestStore,
+            inspector,
+          }),
+        );
+        throw new Error('expected initProject to throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ProjectDirMissingError);
+        if (err instanceof ProjectDirMissingError) {
+          expect(err.projectRoot).toBe('/tmp/missing-folder');
+          expect(err.code).toBe('PROJECT_DIR_MISSING');
+        }
+      }
+    });
+
+    it('probes the project dir BEFORE the git-repo check', async () => {
+      // A missing folder cannot be a git working tree. The dir-missing
+      // error wins so the UI can offer mkdir -p rather than git init.
+      const catalog = presetCatalog('base');
+      const manifestStore = new InMemoryManifestStore();
+      const inspector = new StubInspector(false, false);
+
+      await expect(
+        initProject(
+          inputOf({
+            presetName: PresetName.of('base'),
+            catalog,
+            manifestStore,
+            inspector,
+          }),
+        ),
+      ).rejects.toThrow(ProjectDirMissingError);
     });
   });
 });

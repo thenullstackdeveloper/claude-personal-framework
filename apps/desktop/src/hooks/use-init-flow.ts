@@ -1,6 +1,12 @@
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { useCallback, useState } from 'react';
-import { type CliError, ensureGitRepo, initialize as runInitialize, toCliError } from '../lib/api';
+import {
+  type CliError,
+  ensureGitRepo,
+  ensureProjectDir,
+  initialize as runInitialize,
+  toCliError,
+} from '../lib/api';
 
 export type InitOutcome =
   | { readonly status: 'idle' }
@@ -19,6 +25,11 @@ export type InitOutcome =
  * once; on cancel, the outcome stays at idle (no red banner — the user
  * decided consciously and the subsequent install will skip core.hooksPath
  * gracefully, see CLAUDEPERS-12).
+ *
+ * PROJECT_DIR_MISSING from the engine triggers the analogous flow with
+ * a native confirm dialog offering to `mkdir -p` the folder, then a
+ * retry. On cancel, outcome stays at idle. Same model as the git-init
+ * prompt; see CLAUDEPERS-24.
  *
  * `onSuccess` lets the caller wire a cross-flow side-effect that fires
  * only after a successful initialize — used by App.tsx to refresh the
@@ -58,6 +69,27 @@ export const useInitFlow = ({
         onSuccess?.();
       } catch (e) {
         const error = toCliError(e);
+        if (error.code === 'PROJECT_DIR_MISSING') {
+          const folder = error.projectRoot ?? projectRoot;
+          const wantsMkdir = await confirm(
+            `The folder at ${folder} does not exist. Create it and continue?`,
+            { title: 'Create folder?', okLabel: 'Create folder', cancelLabel: 'Cancel' },
+          );
+          if (!wantsMkdir) {
+            setOutcome({ status: 'idle' });
+            return;
+          }
+          try {
+            await ensureProjectDir(folder);
+            // Recurse so the retry can also handle a downstream
+            // NOT_A_GIT_REPO from the newly created folder.
+            await initialize(presetName);
+            return;
+          } catch (retryErr) {
+            setOutcome({ status: 'error', error: toCliError(retryErr) });
+            return;
+          }
+        }
         if (error.code === 'NOT_A_GIT_REPO') {
           const folder = error.projectRoot ?? projectRoot;
           const wantsGitInit = await confirm(

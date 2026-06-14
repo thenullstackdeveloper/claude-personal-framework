@@ -27,6 +27,7 @@ import type {
   ProjectInspectorPort,
   WriterPort,
 } from '../../ports/index.js';
+import { ProjectDirMissingError } from '../init-project/errors.js';
 import { UnmanagedClaudeMdError, UnmanagedGitHookError } from './errors.js';
 import { install } from './install.use-case.js';
 
@@ -193,6 +194,7 @@ class StubInspector implements ProjectInspectorPort {
     private claudeMd = false,
     private hooks: Set<HookName> = new Set(),
     private gitRepo = true,
+    private dirExists = true,
   ) {}
   setClaudeMd(value: boolean): void {
     this.claudeMd = value;
@@ -204,6 +206,9 @@ class StubInspector implements ProjectInspectorPort {
   setGitRepo(value: boolean): void {
     this.gitRepo = value;
   }
+  setDirExists(value: boolean): void {
+    this.dirExists = value;
+  }
   async claudeMdExists(): Promise<boolean> {
     return this.claudeMd;
   }
@@ -212,6 +217,9 @@ class StubInspector implements ProjectInspectorPort {
   }
   async isGitRepo(): Promise<boolean> {
     return this.gitRepo;
+  }
+  async projectDirExists(): Promise<boolean> {
+    return this.dirExists;
   }
 }
 
@@ -916,6 +924,29 @@ describe('install use case', () => {
           inspector,
         }),
       ).rejects.toThrow(ArtifactNotFoundError);
+    });
+
+    it('throws ProjectDirMissingError when the project dir does not exist', async () => {
+      const catalog = new InMemoryCatalog([Preset.of({ name: PresetName.of('base') })]);
+      inspector.setDirExists(false);
+
+      try {
+        await install({
+          manifest: buildManifest(),
+          projectPath: '/tmp/does-not-exist',
+          catalog,
+          writer,
+          lockfileStore,
+          inspector,
+        });
+        throw new Error('expected install to throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ProjectDirMissingError);
+        if (err instanceof ProjectDirMissingError) {
+          expect(err.projectRoot).toBe('/tmp/does-not-exist');
+          expect(err.code).toBe('PROJECT_DIR_MISSING');
+        }
+      }
     });
   });
 });

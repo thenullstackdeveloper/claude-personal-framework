@@ -144,6 +144,10 @@ export const ensureGitRepo = (path: string): Promise<void> => {
   return invoke<void>('ensure_git_repo', { path });
 };
 
+export const ensureProjectDir = (path: string): Promise<void> => {
+  return invoke<void>('ensure_project_dir', { path });
+};
+
 export type DetectStackMatch = {
   readonly preset: string;
   readonly specificity: number;

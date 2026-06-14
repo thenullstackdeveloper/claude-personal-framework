@@ -372,6 +372,17 @@ struct StatusReport {
     instructions: StatusSingleton,
 }
 
+/// Runs `mkdir -p` on the given path so a subsequent `initialize` /
+/// `install` call no longer trips `ProjectDirMissingError`. Mirrors
+/// `ensure_git_repo`: spawned here directly to skip a node process for
+/// a one-line filesystem op.
+#[tauri::command]
+fn ensure_project_dir(path: String) -> Result<(), CliError> {
+    std::fs::create_dir_all(&path).map_err(|e| {
+        CliError::failure(format!("Failed to create project dir at {}: {}", path, e))
+    })
+}
+
 /// Runs `git init -q` in the given path so a subsequent `initialize`
 /// call no longer trips `NotAGitRepoError`. Idempotent at the git level
 /// (re-running on an already-initialised repo is a no-op for the user).
@@ -424,7 +435,8 @@ pub fn run() {
             detect_stack,
             initialize,
             status,
-            ensure_git_repo
+            ensure_git_repo,
+            ensure_project_dir
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

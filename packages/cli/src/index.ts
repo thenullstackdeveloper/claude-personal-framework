@@ -27,6 +27,7 @@ type ParsedArgs = {
   readonly preset: string | undefined;
   readonly json: boolean;
   readonly initGit: boolean;
+  readonly createDir: boolean;
 };
 
 const parseArgs = (argv: readonly string[]): ParsedArgs => {
@@ -39,6 +40,7 @@ const parseArgs = (argv: readonly string[]): ParsedArgs => {
   let preset: string | undefined;
   let json = false;
   let initGit = false;
+  let createDir = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -60,12 +62,25 @@ const parseArgs = (argv: readonly string[]): ParsedArgs => {
       json = true;
     } else if (arg === '--init-git') {
       initGit = true;
+    } else if (arg === '--create-dir') {
+      createDir = true;
     } else if (!arg.startsWith('--') && !command) {
       command = arg;
     }
   }
 
-  return { command, framework, catalogFolders, noBuiltin, project, path, preset, json, initGit };
+  return {
+    command,
+    framework,
+    catalogFolders,
+    noBuiltin,
+    project,
+    path,
+    preset,
+    json,
+    initGit,
+    createDir,
+  };
 };
 
 const printHelp = (): void => {
@@ -97,6 +112,9 @@ const printHelp = (): void => {
     "  --init-git           For 'init': run 'git init' in the project root automatically if it is",
     '                       not a git repository yet, then retry. Without this flag, init fails',
     '                       with NOT_A_GIT_REPO and exits non-zero so scripts can decide.',
+    "  --create-dir         For 'init': run 'mkdir -p' on the project root automatically if it",
+    '                       does not exist, then retry. Without this flag, init fails with',
+    '                       PROJECT_DIR_MISSING and exits non-zero so scripts can decide.',
   ];
   process.stdout.write(`${lines.join('\n')}\n`);
 };
@@ -110,7 +128,7 @@ const resolveFrameworkFlag = (override: string | undefined): string | undefined 
 
 const main = async (): Promise<void> => {
   const parsed = parseArgs(process.argv.slice(2));
-  const { command, project, path, preset, json, initGit } = parsed;
+  const { command, project, path, preset, json, initGit, createDir } = parsed;
 
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     printHelp();
@@ -146,6 +164,7 @@ const main = async (): Promise<void> => {
       projectRoot: project ?? process.cwd(),
       presetName: preset,
       initGit,
+      createDir,
     });
     const output = json ? formatInitReportJson(report) : formatInitReport(report);
     process.stdout.write(`${output}\n`);
@@ -213,9 +232,13 @@ main().catch((err) => {
     if (e.code === 'UNMANAGED_GIT_HOOK' && typeof e.hookName === 'string') {
       payload.error.hookName = e.hookName;
     }
-    // NotAGitRepoError carries the projectRoot so the desktop modal
-    // names the folder. Without it the UI would have to guess.
-    if (e.code === 'NOT_A_GIT_REPO' && typeof e.projectRoot === 'string') {
+    // NotAGitRepoError / ProjectDirMissingError both carry the projectRoot
+    // so the desktop modal can name the folder. Without it the UI would
+    // have to guess.
+    if (
+      (e.code === 'NOT_A_GIT_REPO' || e.code === 'PROJECT_DIR_MISSING') &&
+      typeof e.projectRoot === 'string'
+    ) {
       payload.error.projectRoot = e.projectRoot;
     }
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);

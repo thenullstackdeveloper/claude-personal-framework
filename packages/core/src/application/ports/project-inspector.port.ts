@@ -33,4 +33,14 @@ export interface ProjectInspectorPort {
    * `git rev-parse --is-inside-work-tree` rather than `.git/` existence.
    */
   isGitRepo(): Promise<boolean>;
+
+  /**
+   * True if the project root itself exists on disk. Used by `init` and
+   * `install` to surface a typed error (`ProjectDirMissingError`) when
+   * the user typed or pasted a path that does not exist — without this
+   * the underlying ops would fail with a raw ENOENT that no UI can act
+   * on. The desktop offers to `mkdir -p` for the user; the CLI surfaces
+   * the typed code or auto-resolves it with `--create-dir`.
+   */
+  projectDirExists(): Promise<boolean>;
 }

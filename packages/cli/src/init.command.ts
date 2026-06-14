@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   type CatalogPort,
@@ -6,6 +7,7 @@ import {
   LocalProjectInspector,
   NotAGitRepoError,
   PresetName,
+  ProjectDirMissingError,
   initProject,
 } from '@claude-fw/core';
 
@@ -23,6 +25,13 @@ export type InitCommandArgs = {
    * modal flow).
    */
   readonly initGit?: boolean;
+  /**
+   * When true, a ProjectDirMissingError from the engine is auto-resolved
+   * by `mkdir -p`-ing the project root and retrying once. Without it the
+   * error bubbles up — mirrors --init-git: strict by default, opt-in
+   * convenience flag for scripting.
+   */
+  readonly createDir?: boolean;
 };
 
 export type InitCommandReport = {
@@ -44,13 +53,25 @@ export const runInit = async (args: InitCommandArgs): Promise<InitCommandReport>
       inspector,
     });
 
-  try {
-    await attempt();
-  } catch (err) {
-    if (err instanceof NotAGitRepoError && args.initGit) {
-      await runGitInit(args.projectRoot);
+  // Auto-resolve loop: each iteration runs initProject; if it throws a
+  // typed error the user opted into auto-resolving via flag, we apply the
+  // fix and retry. Capped at MAX_ATTEMPTS to keep a misbehaving resolver
+  // from looping forever — the natural chain ("missing dir → mkdir → not
+  // a repo → git init → success") fits within 3 attempts.
+  const MAX_ATTEMPTS = 3;
+  for (let attempt_no = 0; attempt_no < MAX_ATTEMPTS; attempt_no++) {
+    try {
       await attempt();
-    } else {
+      break;
+    } catch (err) {
+      if (err instanceof ProjectDirMissingError && args.createDir) {
+        await mkdir(args.projectRoot, { recursive: true });
+        continue;
+      }
+      if (err instanceof NotAGitRepoError && args.initGit) {
+        await runGitInit(args.projectRoot);
+        continue;
+      }
       throw err;
     }
   }

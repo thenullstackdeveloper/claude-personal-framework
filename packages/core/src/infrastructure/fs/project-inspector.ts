@@ -42,6 +42,16 @@ export class LocalProjectInspector implements ProjectInspectorPort {
     // .git dir itself, etc.) is treated as "not a working tree".
     return code === 0 && stdout.trim() === 'true';
   }
+
+  async projectDirExists(): Promise<boolean> {
+    try {
+      await access(this.projectRoot);
+      return true;
+    } catch (err) {
+      if (isErrnoException(err) && err.code === 'ENOENT') return false;
+      throw err;
+    }
+  }
 }
 
 type GitResult = { readonly code: number; readonly stdout: string };

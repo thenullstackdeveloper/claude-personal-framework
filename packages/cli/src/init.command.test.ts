@@ -7,6 +7,7 @@ import {
   ManifestAlreadyExistsError,
   NotAGitRepoError,
   PresetNotFoundError,
+  ProjectDirMissingError,
 } from '@claude-fw/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { formatInitReport, formatInitReportJson, runInit } from './init.command.js';
@@ -123,6 +124,39 @@ describe('runInit (CLI command)', () => {
       expect(dotGit).toMatch(/^ref:/);
     } finally {
       await rm(nonGit, { recursive: true, force: true });
+    }
+  });
+
+  it('fails with ProjectDirMissingError when the project root does not exist', async () => {
+    await seedPreset('base');
+    const missing = join(tmpdir(), `cfw-init-missing-${Date.now()}`);
+    await expect(
+      runInit({
+        catalog: new FsCatalogReader(framework),
+        projectRoot: missing,
+        presetName: 'base',
+      }),
+    ).rejects.toThrow(ProjectDirMissingError);
+  });
+
+  it('creates the dir and retries when --create-dir is set on a missing path', async () => {
+    await seedPreset('base');
+    const parent = await mkdtemp(join(tmpdir(), 'cfw-init-create-'));
+    const missing = join(parent, 'nested', 'project');
+    try {
+      const report = await runInit({
+        catalog: new FsCatalogReader(framework),
+        projectRoot: missing,
+        presetName: 'base',
+        createDir: true,
+        initGit: true,
+      });
+
+      expect(report.projectRoot).toBe(missing);
+      const content = await readFile(report.manifestPath, 'utf-8');
+      expect(content).toContain('preset: base');
+    } finally {
+      await rm(parent, { recursive: true, force: true });
     }
   });
 });

@@ -13,6 +13,7 @@ import type {
   WriterPort,
 } from '../../ports/index.js';
 import { buildComposition } from '../../services/build-composition.js';
+import { ProjectDirMissingError } from '../init-project/errors.js';
 import { UnmanagedClaudeMdError, UnmanagedGitHookError } from './errors.js';
 
 const GITHOOKS_DIR = '.githooks';
@@ -74,6 +75,14 @@ export type InstallResult = {
 
 export const install = async (input: InstallInput): Promise<InstallResult> => {
   const { manifest, projectPath, catalog, writer, lockfileStore, inspector, gitConfig } = input;
+
+  // Probe the project dir first — every downstream op (lockfile read,
+  // writer, git-config) assumes the folder exists; failing here with a
+  // typed error lets the UI offer a mkdir prompt instead of surfacing a
+  // raw ENOENT from whichever op tripped first.
+  if (!(await inspector.projectDirExists())) {
+    throw new ProjectDirMissingError(projectPath);
+  }
 
   const composition = await buildComposition({ manifest, projectPath, catalog });
 
