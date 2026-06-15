@@ -21,6 +21,15 @@ const parseArtifactRef = (ref: string): ArtifactRef => {
   if (type === 'agent') return ArtifactRef.agent(AgentId.of(id));
   if (type === 'skill') return ArtifactRef.skill(SkillId.of(id));
   if (type === 'command') return ArtifactRef.command(CommandId.of(id));
+  // git-hook is a valid ArtifactRef.type at the domain level (the serializer
+  // emits it defensively), but the override system treats every git-hook
+  // target as a no-op (CLAUDEPERS-9). Rather than parsing a ref that nothing
+  // downstream can act on, refuse it here with a message naming the rule.
+  if (type === 'git-hook') {
+    throw new InvalidProjectManifestError(
+      `git-hook overrides are not supported in project manifests — git-hook targets ("${ref}") cannot be disabled, added or patched from a project`,
+    );
+  }
   throw new InvalidProjectManifestError(`unknown artifact type "${type}" in reference "${ref}"`);
 };
 

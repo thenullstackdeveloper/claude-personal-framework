@@ -130,6 +130,37 @@ overrides:
       expect(() => parseProjectManifest(yaml)).toThrow(InvalidProjectManifestError);
     });
 
+    it('rejects a git-hook override with a message naming the rule (CLAUDEPERS-8)', () => {
+      // git-hook is a valid ArtifactRef variant at the domain level but the
+      // override system treats every git-hook target as a no-op. Surfacing
+      // a clear error here is better than letting the manifest parse and
+      // then silently dropping the override at applyOverrides.
+      const yaml = `
+preset: p
+overrides:
+  - disable: git-hook:pre-commit
+`;
+      expect(() => parseProjectManifest(yaml)).toThrow(InvalidProjectManifestError);
+      try {
+        parseProjectManifest(yaml);
+        throw new Error('expected parseProjectManifest to throw');
+      } catch (err) {
+        if (!(err instanceof InvalidProjectManifestError)) throw err;
+        expect(err.message).toContain('git-hook overrides are not supported');
+        expect(err.message).toContain('git-hook:pre-commit');
+      }
+    });
+
+    it('rejects a git-hook patch override with the same rule (CLAUDEPERS-8)', () => {
+      const yaml = `
+preset: p
+overrides:
+  - patch: git-hook:pre-push
+    content: 'echo replaced'
+`;
+      expect(() => parseProjectManifest(yaml)).toThrow(InvalidProjectManifestError);
+    });
+
     it('rejects malformed YAML', () => {
       expect(() => parseProjectManifest('preset: [unclosed')).toThrow(InvalidProjectManifestError);
     });
