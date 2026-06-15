@@ -54,6 +54,12 @@ export function applyOverrides(
     }
 
     if (override.kind === 'patch') {
+      // git-hook targets in overrides are not supported in MVP — no-op.
+      // Without this guard, the patch ended up in the returned `patches`
+      // array as a zombie that `buildComposition` never consumes (the
+      // composition step only patches Agent/Skill/Command). Symmetric with
+      // the disable/add branches above.
+      if (override.target.type === 'git-hook') continue;
       patches.push({ target: override.target, content: override.content });
     }
   }

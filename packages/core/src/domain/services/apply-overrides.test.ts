@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ArtifactRef } from '../model/artifact-ref.js';
-import { AgentId, CommandId, PresetName, SkillId } from '../model/identifiers.js';
+import { AgentId, CommandId, HookName, PresetName, SkillId } from '../model/identifiers.js';
 import { Override } from '../model/override.js';
 import { Preset } from '../model/preset.js';
 import { applyOverrides } from './apply-overrides.js';
@@ -11,6 +11,13 @@ const buildPreset = () =>
     agentIds: [AgentId.of('docs-manager'), AgentId.of('hexagonal-enforcer')],
     skillIds: [SkillId.of('hexagonal-rn')],
     commandIds: [CommandId.of('build-android')],
+  });
+
+const buildPresetWithHook = () =>
+  Preset.of({
+    name: PresetName.of('with-hook'),
+    agentIds: [AgentId.of('docs-manager')],
+    gitHookNames: [HookName.of('pre-commit')],
   });
 
 describe('applyOverrides', () => {
@@ -105,5 +112,39 @@ describe('applyOverrides', () => {
       Override.add(ArtifactRef.agent(AgentId.of('docs-manager'))),
     ]).preset;
     expect(out.agentIds.map(String)).toEqual(['hexagonal-enforcer', 'docs-manager']);
+  });
+
+  // git-hooks are NOT patchable / disableable / addable through project
+  // overrides in the MVP — the hookName enum is closed and hook content
+  // ships with the catalog. The three branches below were no-ops "by
+  // comment" until CLAUDEPERS-9 pinned them with tests.
+  describe('git-hook targets (no-op)', () => {
+    it('disable with a git-hook target leaves gitHookNames untouched and produces no patch', () => {
+      const { preset: out, patches } = applyOverrides(buildPresetWithHook(), [
+        Override.disable(ArtifactRef.gitHook(HookName.of('pre-commit'))),
+      ]);
+      expect(out.gitHookNames.map(String)).toEqual(['pre-commit']);
+      expect(out.agentIds.map(String)).toEqual(['docs-manager']);
+      expect(patches).toEqual([]);
+    });
+
+    it('add with a git-hook target leaves gitHookNames untouched and produces no patch', () => {
+      const { preset: out, patches } = applyOverrides(buildPresetWithHook(), [
+        Override.add(ArtifactRef.gitHook(HookName.of('pre-push'))),
+      ]);
+      expect(out.gitHookNames.map(String)).toEqual(['pre-commit']);
+      expect(patches).toEqual([]);
+    });
+
+    it('patch with a git-hook target produces no patch (no zombie entry)', () => {
+      // Before this guard landed, the patch slid into the patches array
+      // and `buildComposition` silently ignored it downstream. The empty
+      // patches[] pins the right behavior at the boundary.
+      const { preset: out, patches } = applyOverrides(buildPresetWithHook(), [
+        Override.patch(ArtifactRef.gitHook(HookName.of('pre-commit')), 'echo replaced'),
+      ]);
+      expect(out.gitHookNames.map(String)).toEqual(['pre-commit']);
+      expect(patches).toEqual([]);
+    });
   });
 });

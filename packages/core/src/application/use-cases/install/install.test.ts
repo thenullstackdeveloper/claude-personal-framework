@@ -892,6 +892,59 @@ describe('install use case', () => {
       expect(result.written.gitHooks).toEqual([]);
       expect(lockfileStore.current?.gitHooks).toEqual([]);
     });
+
+    it('updates a hook when its catalog content changes (hash A → hash B, e2e)', async () => {
+      // CLAUDEPERS-9: ends-to-end coverage of the `updated` drift branch.
+      // computeDrift was already covered in isolation; this test pins the
+      // full pipeline (drift → writer → lockfile) so a regression that
+      // skipped the rewrite or kept the stale lockfile entry surfaces here.
+      const hookName = HookName.of('pre-commit');
+      const oldContent = '#!/bin/sh\n# version A\n';
+      const newContent = '#!/bin/sh\n# version B\nextra-step\n';
+      const newContentHash = ContentHash.of(newContent);
+
+      // Lockfile written by a previous install with the OLD hook content.
+      lockfileStore.current = Lockfile.of({
+        presetName: PresetName.of('base'),
+        artifacts: [],
+        settings: Settings.empty(),
+        instructions: Instructions.empty(),
+        gitHooks: [{ hookName, contentHash: ContentHash.of(oldContent) }],
+      });
+
+      // Catalog now serves the hook with the NEW content.
+      const catalog = new InMemoryCatalog(
+        [presetWithHooks([hookName])],
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map([['pre-commit', newContent]]),
+      );
+
+      const result = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog,
+        writer,
+        lockfileStore,
+        inspector,
+      });
+
+      // Writer received the new content under the same hook name.
+      expect(writer.written.gitHooks).toHaveLength(1);
+      expect(writer.written.gitHooks[0]?.hookName).toBe('pre-commit');
+      expect(writer.written.gitHooks[0]?.content).toBe(newContent);
+
+      // The install report reflects the rewrite.
+      expect(result.written.gitHooks).toEqual(['pre-commit']);
+
+      // The lockfile now stores the NEW hash, replacing the old one.
+      expect(lockfileStore.current?.gitHooks.map((h) => h.hookName)).toEqual(['pre-commit']);
+      expect(lockfileStore.current?.gitHooks[0]?.contentHash.toString()).toBe(
+        newContentHash.toString(),
+      );
+    });
   });
 
   describe('errors', () => {
