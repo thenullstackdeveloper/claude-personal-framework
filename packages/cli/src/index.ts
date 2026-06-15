@@ -126,8 +126,14 @@ const resolveFrameworkFlag = (override: string | undefined): string | undefined 
   return undefined;
 };
 
+// Parse argv at module level so the top-level error handler can read the
+// `--json` flag from the same parsed result instead of re-scanning argv
+// (CLAUDEPERS-33). parseArgs is non-throwing today; if a future revision
+// adds validation, this lift will still resolve before main() executes
+// because the .catch() depends on parsed being defined.
+const parsed = parseArgs(process.argv.slice(2));
+
 const main = async (): Promise<void> => {
-  const parsed = parseArgs(process.argv.slice(2));
   const { command, project, path, preset, json, initGit, createDir } = parsed;
 
   if (!command || command === 'help' || command === '--help' || command === '-h') {
@@ -214,9 +220,8 @@ const main = async (): Promise<void> => {
 };
 
 main().catch((err) => {
-  const json = process.argv.includes('--json');
   const e = err as Error & { code?: string; hookName?: string; projectRoot?: string };
-  if (json) {
+  if (parsed.json) {
     const payload: {
       error: {
         code: string;
