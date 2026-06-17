@@ -1,0 +1,12 @@
+extends: base
+skills:
+  - react-hexagonal-patterns
+  - zustand-patterns
+  - react-native-patterns
+  - react-native-testing-rules
+# `detects:` patterns are evaluated against the project root by the wizard
+# (see CLAUDEPERS-16). `expo` is the canonical signal — every Expo SDK
+# project has it in dependencies, and bare React Native projects without
+# Expo (which are out of scope for this preset) do not.
+detects:
+  - dependencies: [expo]
