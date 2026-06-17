@@ -1,6 +1,6 @@
 # Roadmap
 
-Prioritized backlog as of 2026-06-14. Update it when priorities shift
+Prioritized backlog as of 2026-06-17. Update it when priorities shift
 or items ship — a stale roadmap is worse than no roadmap.
 
 Tiers reflect *when*, not *what*:
@@ -14,53 +14,7 @@ Tiers reflect *when*, not *what*:
 
 ## Now
 
-### 1 · Consolidation post-`CLAUDEPERS-14`
-
-Small consolidation block after the UI redesign. Three threads, all
-low-risk, plus the screenshot capture that was previously in Next but
-makes sense to fold in now while the new UI is fresh.
-
-**Tech debt cleanup** (audit-flagged "monitor, don't act" items that
-have accumulated):
-
-- Report DTOs triplicated across CLI / Rust / frontend — the surface
-  grew meaningfully with Settings + Instructions + git hooks + the
-  new catalog source flags. Consider a shared schema if it grows
-  further. See Deferred 6.
-- `parseSettings` duplicated between `parse-lockfile.ts` and
-  `parse-preset.ts`.
-- `isErrnoException` duplicated across four `infrastructure/fs/`
-  adapters.
-- CLI top-level error handler detects `--json` by re-scanning
-  `process.argv` instead of using the parsed flag
-  (`packages/cli/src/index.ts`). Inherited from Bloque 2; harmonize
-  on the rewrite of `main()`.
-
-**Backlog Plane tickets from the `CLAUDEPERS-1` umbrella that never
-shipped** (all low priority, none load-bearing):
-
-- `CLAUDEPERS-7` — refine `commit-style` skill to dial down body
-  verbosity.
-- `CLAUDEPERS-8` — resolve git-hook ref asymmetry in project-manifest
-  parse/serialize.
-- `CLAUDEPERS-9` — backfill tests for git-hook no-op branches and
-  update the e2e.
-
-**README screenshots** — capture the new UI now that it's stable:
-welcome wizard (step 1 with detect-stack preselect, step 2 with the
-setup summary), free mode with the three cards and an active project,
-recent projects screen, Settings panel with both sections. The README
-edit is trivial; getting the screenshots right while the app is fresh
-in memory is the point.
-
-- *Why now:* all individually innocuous, accumulated enough to clear
-  in one focused pass. Closing them keeps the surface clean before
-  Global bin install (Deferred 13) ships outwards. Capturing
-  screenshots while the UI is fresh in memory is cheaper than coming
-  back to it.
-- *Cost:* low each. Bounded to one focused session.
-
-### 2 · Presets for the remaining personal stacks (React Native, Vue 3, Laravel)
+### 1 · Presets for the remaining personal stacks (React Native, Vue 3, Laravel)
 
 With the catalog format finalized and the `nestjs` and
 `tauri-rust-react` presets already shipped (each with its own
@@ -84,7 +38,7 @@ stack-specific skills), three stacks remain on the personal radar:
   there's a concrete project that pulls for it — not all three at
   once on speculation.
 
-### 3 · `CLAUDEPERS-10` — pre-commit/pre-push hooks adapt to the project's tooling
+### 2 · `CLAUDEPERS-10` — pre-commit/pre-push hooks adapt to the project's tooling
 
 Today `base.yaml` ships `pre-commit` and `pre-push` hooks that hard-code
 `pnpm` commands. A project on `npm` or `yarn` sees them try to run a
@@ -139,6 +93,11 @@ renumbered.
 ---
 
 ## Recently shipped
+
+- **Consolidation post-`CLAUDEPERS-14` (Now 1, `CLAUDEPERS-29` umbrella)** — three low-risk threads closed in one focused pass before moving outward. Eight commits, all on 2026-06-15 → 2026-06-17:
+  - **Tech debt** flagged by the post-`CLAUDEPERS-14` audit as "monitor, don't act" until it accumulated: `d448f94` consolidated `isErrnoException` into `infrastructure/fs/fs-helpers` (`CLAUDEPERS-32`), `169f807` factored `parseSettings` into a shared parser between `parse-lockfile` and `parse-preset` (`CLAUDEPERS-31`), `670a377` made the desktop import report DTOs from the CLI as the single source of truth with Rust contract tests pinning the shape — recorded in ADR-0005 (`CLAUDEPERS-30`), `1b4fec9` switched the CLI top-level error handler to the parsed `--json` flag (`CLAUDEPERS-33`).
+  - **`CLAUDEPERS-1` umbrella leftovers** that never shipped: `2445357` dropped git-hook patch overrides in `applyOverrides` (was a zombie branch — `CLAUDEPERS-9`); `ce37a0f` rejected git-hook overrides at manifest parse with a named rule, fixing the parse/serialize asymmetry (`CLAUDEPERS-8`); `8e3d641` refined `commit-style` with a "qué patrón aplicar" selector + smell test for body verbosity + before/after example (`CLAUDEPERS-7`).
+  - **README screenshots** (`2394e4c`, `CLAUDEPERS-34`): five captures of the new UI (welcome wizard step 1/2, free mode, recent projects, settings) under `docs/img/` with a new "Inside the desktop app" section in the README. Closed the umbrella.
 
 - **Polish the desktop UI → real-product experience (Now 1, `CLAUDEPERS-14` umbrella)** — moved the desktop from a four-button vertical stack to a wizard-gated product. Fourteen sub-issues across engine, CLI, Rust and frontend; ADRs 0003 and 0004 record the load-bearing architectural choices. Eight commits over three days (2026-06-13 → 2026-06-14):
   - **Engine multi-source catalog** (`1805a33`, `CLAUDEPERS-15` + `-17` + `-18`): `AggregatedCatalog` decorator with first-wins precedence `env > --catalog-folder > --framework > builtin`, `NoCatalogSourceError`, new CLI flags. Closed the `frameworkRoot` legacy without breaking it. `2ccd1f7` renamed `CatalogReader` → `FsCatalogReader` with deprecated alias.
