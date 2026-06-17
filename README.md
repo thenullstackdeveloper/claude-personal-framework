@@ -125,6 +125,39 @@ window fails to open with a GDK protocol error. See
 [apps/desktop/README.md](apps/desktop/README.md) for the full setup
 (stack, IPC bridge, other gotchas).
 
+### Inside the desktop app
+
+First-time users land on a two-step welcome wizard. The first step picks
+a project folder and detects the stack against the catalog's `detects:`
+rules to preselect the right preset:
+
+![Welcome wizard, step 1 — project + detected preset](docs/img/wizard-step-1.png)
+
+The second step shows the setup summary and runs `init + install` in
+sequence; if the folder is missing or not a git repo, the wizard
+intercepts the typed error and offers the right native modal:
+
+![Welcome wizard, step 2 — setup summary and Set up button](docs/img/wizard-step-2.png)
+
+Once a project is set up, the app switches to the free mode: project
+header with a Switch dropdown, plus three cards for Status / Catalog /
+Actions. Outcomes are ephemeral — success banners auto-dismiss after
+5 s, errors stay sticky:
+
+![Free mode — project header + Status, Catalog, Actions cards](docs/img/free-mode.png)
+
+When the welcome flag is set and there's no active project, the recent
+projects screen replaces the wizard:
+
+![Recent projects screen with three recently used projects](docs/img/recent-projects.png)
+
+Settings is a full-screen modal that manages the catalog sources —
+built-in toggle, user folders with per-row remove, and an Add folder
+button that validates against the engine before persisting. The
+welcome wizard can be reset from the bottom section:
+
+![Settings panel — Catalog folders and Welcome wizard sections](docs/img/settings-panel.png)
+
 ## Architecture
 
 Hexagonal (ports & adapters):
