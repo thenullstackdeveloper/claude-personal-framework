@@ -50,6 +50,28 @@ Explica el **por qué** y, si no es evidente, **cómo encaja en el contexto** (q
 
 Líneas a 72 columnas aprox para que `git log` se lea sin scroll lateral.
 
+### Cuánto body es suficiente
+
+Smell test antes de cada bullet: **"¿reabriría esta decisión un lector futuro si no veo este texto?"** Si la respuesta es no, el bullet es relleno — fuera. Si la respuesta es sí, queda.
+
+Como regla práctica:
+
+- **Entra**: veredicto del análisis previo (qué opción y de cuántas), decisiones cerradas que un lector futuro reabriría sin el texto, descartados importantes con razón.
+- **NO entra**: descripciones del diff (el diff lo da), counts de tests verdes (CI los da), parafrasis del subject, enumeración de archivos tocados, recapitulaciones del estado del proyecto que no afectan a este commit.
+
+LLMs (y humanos cansados) tienden a optimizar "no perder nada" y meten bullets descriptivos. Recortar al 50% conservando el por qué casi siempre es lo correcto.
+
+### Qué patrón aplicar
+
+Antes de redactar el body, identifica el patrón:
+
+- **Trivial** (typo, rename, dep patch, 1 fichero subject-obvio): solo subject, sin body.
+- **Estándar** sin análisis previo: 1–3 líneas explicando el porqué; ningún patrón formal.
+- Hubo **análisis previo** del agente o architect con plan aprobado → **Patrón A**.
+- La rama existió a propósito pero **no produjo refactor** (cleanup incidental tras un análisis "no tocar") → **Patrón B**.
+- Cierre de **bloque multi-fase** del roadmap → **Patrón C**.
+- **Solo docs** (README, ADRs, roadmap) → **Patrón D**.
+
 ### Patrón A — refactor con análisis previo
 
 Cuando hubo un análisis de un agente o architect que produjo un plan + decisiones aprobadas, el body **debe** capturar:
@@ -186,7 +208,56 @@ same pattern as the boss.service.ts cleanup.
 - `feat: changes` / `update stuff` / `WIP` en `main`.
 - Body que repite el subject con más palabras.
 - Body que describe el diff (`Added foo.ts`, `Removed bar.ts`) en vez del por qué.
+- Bullets que enumeran archivos tocados o counts de tests verdes — el diff y CI ya lo dan.
+- Body extendido cuando la decisión está obvia en el subject (típico de subjects largos y específicos: ahí el body sobra).
 - Subject `feat(*)` cuando el cambio no añade nada nuevo (debería ser `refactor`/`chore`).
 - Footers vacíos o `Signed-off-by: nadie`.
 - Citar tickets internos como única referencia (`Closes JIRA-1234`) sin explicar de qué iba.
 - Atribución a IA (ya cubierto en regla cero, pero repetir porque es el error más frecuente al copiar templates de internet).
+
+## Ejemplo — recortar un body sobrecargado
+
+### Antes (overshoot del LLM)
+
+```
+fix(core): correct git-hook drift detection
+
+This commit fixes the git-hook drift detection logic in computeDrift
+so that updated hooks are correctly reported. Previously, the drift
+service was treating updated git-hooks as unchanged, which caused
+the install pipeline to skip the writeGitHook call and leave the
+project with stale hook content.
+
+Files changed:
+- packages/core/src/domain/services/compute-drift.ts (added the
+  git-hook update detection branch)
+- packages/core/src/domain/services/compute-drift.test.ts (added 3
+  new tests covering the update path)
+- packages/core/src/application/use-cases/install/install.test.ts
+  (added an end-to-end test confirming the install pipeline writes
+  the updated content)
+
+All 417 tests pass. Lint passes. Verified live by installing a
+preset with a modified pre-commit hook against a project with the
+old version in its lockfile.
+```
+
+### Después (smell test aplicado)
+
+```
+fix(core): detect git-hook updates in computeDrift
+
+Updated git-hooks were silently classified as unchanged, so install
+skipped writeGitHook and left the project with the old content.
+Added the update branch in computeDrift + e2e in install.test
+covering lockfile → composition → writer round-trip.
+```
+
+Por qué el recorte aguanta el smell test:
+
+- El por qué del bug ("classified as unchanged") está. Quien reabra la lógica del drift sabe contra qué pelea.
+- La enumeración de archivos NO está — el diff los lista.
+- Los counts de tests NO están — CI los reporta.
+- El "verified live" NO está — la autorización del usuario (regla del CLAUDE.md) ya cubre que el cambio se probó antes de commitear.
+
+Antes: ~22 líneas. Después: ~5. Mismo poder informativo para el lector futuro.
