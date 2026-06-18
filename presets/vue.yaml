@@ -1,0 +1,12 @@
+extends: base
+skills:
+  - vue-hexagonal-patterns
+  - pinia-patterns
+  - vue-testing-rules
+# `detects:` patterns are evaluated against the project root by the wizard
+# (see CLAUDEPERS-16). `vue` is the canonical signal — every Vue 3 project
+# has it in dependencies. Nuxt projects also have `vue`, but this v1 does
+# NOT specialize for Nuxt (out of scope; calibrate when a real Nuxt
+# project lands).
+detects:
+  - dependencies: [vue]
