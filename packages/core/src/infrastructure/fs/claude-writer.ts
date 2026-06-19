@@ -15,6 +15,7 @@ const AGENTS_SUBDIR = 'agents';
 const SKILLS_SUBDIR = 'skills';
 const COMMANDS_SUBDIR = 'commands';
 const ARTIFACT_EXT = '.md';
+const SKILL_FILENAME = 'SKILL.md';
 const SETTINGS_FILENAME = 'settings.json';
 const INSTRUCTIONS_FILENAME = 'CLAUDE.md';
 const GITHOOKS_DIR = '.githooks';
@@ -59,12 +60,20 @@ export class ClaudeWriter implements WriterPort {
     );
   }
 
+  private skillDir(id: { toString(): string }): string {
+    return join(this.artifactDir(SKILLS_SUBDIR), id.toString());
+  }
+
+  private skillFile(id: { toString(): string }): string {
+    return join(this.skillDir(id), SKILL_FILENAME);
+  }
+
   async writeSkill(skill: Skill): Promise<void> {
-    return this.writeArtifact(
-      SKILLS_SUBDIR,
-      `${skill.id.toString()}${ARTIFACT_EXT}`,
-      skill.content,
-    );
+    // Claude Code discovers skills as `.claude/skills/<id>/SKILL.md` —
+    // the identifier is the directory name (ADR-0006).
+    const dir = this.skillDir(skill.id);
+    await mkdir(dir, { recursive: true });
+    await writeFile(this.skillFile(skill.id), skill.content, 'utf-8');
   }
 
   async writeCommand(command: Command): Promise<void> {
@@ -80,7 +89,9 @@ export class ClaudeWriter implements WriterPort {
   }
 
   async deleteSkill(id: SkillId): Promise<void> {
-    return this.deleteArtifact(SKILLS_SUBDIR, id);
+    // Sweep the whole `<id>/` directory (SKILL.md plus any sibling
+    // assets). `force: true` makes ENOENT a no-op.
+    await rm(this.skillDir(id), { recursive: true, force: true });
   }
 
   async deleteCommand(id: CommandId): Promise<void> {

@@ -39,11 +39,29 @@ describe('ClaudeWriter', () => {
       expect(content).toBe('v2');
     });
 
-    it('writes a skill to .claude/skills/', async () => {
+    it('writes a skill as .claude/skills/<id>/SKILL.md (folder layout for Claude Code discovery)', async () => {
       const writer = new ClaudeWriter(projectRoot);
       await writer.writeSkill(Skill.of(SkillId.of('hexagonal-rn'), 'skill body'));
-      const content = await readFile(claudePath('skills', 'hexagonal-rn.md'), 'utf-8');
+      const content = await readFile(claudePath('skills', 'hexagonal-rn', 'SKILL.md'), 'utf-8');
       expect(content).toBe('skill body');
+    });
+
+    it('overwrites an existing skill SKILL.md on re-write', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeSkill(Skill.of(SkillId.of('a'), 'v1'));
+      await writer.writeSkill(Skill.of(SkillId.of('a'), 'v2'));
+      const content = await readFile(claudePath('skills', 'a', 'SKILL.md'), 'utf-8');
+      expect(content).toBe('v2');
+    });
+
+    it('writes two skills as sibling directories with their own SKILL.md', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await writer.writeSkill(Skill.of(SkillId.of('alpha'), 'A'));
+      await writer.writeSkill(Skill.of(SkillId.of('beta'), 'B'));
+      const a = await readFile(claudePath('skills', 'alpha', 'SKILL.md'), 'utf-8');
+      const b = await readFile(claudePath('skills', 'beta', 'SKILL.md'), 'utf-8');
+      expect(a).toBe('A');
+      expect(b).toBe('B');
     });
 
     it('writes a command to .claude/commands/', async () => {
@@ -76,11 +94,19 @@ describe('ClaudeWriter', () => {
       expect(kept).toBe('k');
     });
 
-    it('deletes a skill', async () => {
+    it('removes the entire skill <id>/ directory (SKILL.md plus any siblings)', async () => {
       const writer = new ClaudeWriter(projectRoot);
       await writer.writeSkill(Skill.of(SkillId.of('foo'), 'x'));
+      // Drop a sibling asset in the skill folder to prove the whole dir
+      // gets swept, not just SKILL.md.
+      await writeFile(claudePath('skills', 'foo', 'extra.txt'), 'asset');
       await writer.deleteSkill(SkillId.of('foo'));
-      await expect(stat(claudePath('skills', 'foo.md'))).rejects.toThrow();
+      await expect(stat(claudePath('skills', 'foo'))).rejects.toThrow();
+    });
+
+    it('deleteSkill is a no-op when the skill directory does not exist', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await expect(writer.deleteSkill(SkillId.of('never-was'))).resolves.toBeUndefined();
     });
 
     it('deletes a command', async () => {

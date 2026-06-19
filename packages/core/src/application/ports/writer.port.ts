@@ -8,11 +8,24 @@ import type { Skill } from '../../domain/model/skill.js';
 
 export interface WriterPort {
   writeAgent(agent: Agent): Promise<void>;
+
+  /**
+   * Materializes a skill as `.claude/skills/<id>/SKILL.md` (folder
+   * layout, NOT flat `<id>.md`). Claude Code's skill discovery only
+   * walks the folder layout — see ADR-0006.
+   */
   writeSkill(skill: Skill): Promise<void>;
+
   writeCommand(command: Command): Promise<void>;
 
   deleteAgent(id: AgentId): Promise<void>;
+
+  /**
+   * Removes the entire `.claude/skills/<id>/` directory (the skill plus
+   * any sibling assets it may carry). Idempotent.
+   */
   deleteSkill(id: SkillId): Promise<void>;
+
   deleteCommand(id: CommandId): Promise<void>;
 
   /**
