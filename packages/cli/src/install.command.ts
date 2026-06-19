@@ -2,7 +2,9 @@ import {
   type CatalogPort,
   ChildProcessGitConfig,
   ClaudeWriter,
+  FsGitignore,
   FsManifestStore,
+  type GitignoreApplyResult,
   LocalProjectInspector,
   LockfileStore,
   install,
@@ -24,6 +26,7 @@ export type InstallCommandReport = {
   readonly gitConfigActivated: boolean;
   readonly gitConfigCurrent: string | null;
   readonly gitConfigSkippedReason: 'not-a-git-repo' | null;
+  readonly gitignore: GitignoreApplyResult | null;
 };
 
 export const runInstall = async (args: InstallCommandArgs): Promise<InstallCommandReport> => {
@@ -39,6 +42,7 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
   const lockfileStore = new LockfileStore(args.projectRoot);
   const inspector = new LocalProjectInspector(args.projectRoot);
   const gitConfig = new ChildProcessGitConfig(args.projectRoot);
+  const gitignore = new FsGitignore(args.projectRoot);
 
   const result = await install({
     manifest,
@@ -48,6 +52,7 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
     lockfileStore,
     inspector,
     gitConfig,
+    gitignore,
   });
 
   return {
@@ -61,6 +66,7 @@ export const runInstall = async (args: InstallCommandArgs): Promise<InstallComma
     gitConfigActivated: result.written.gitConfigActivated,
     gitConfigCurrent: result.written.gitConfigCurrent,
     gitConfigSkippedReason: result.written.gitConfigSkippedReason,
+    gitignore: result.written.gitignore,
   };
 };
 
@@ -89,6 +95,19 @@ export const formatInstallReport = (report: InstallCommandReport): string => {
         "  Git config: skipped — project is not a git repository (run 'git init' to enable the hooks).",
       );
     }
+  }
+  if (report.gitignore) {
+    if (report.gitignore.status === 'created') {
+      lines.push(`  Gitignore: created at ${report.gitignore.path}`);
+    } else if (report.gitignore.status === 'updated') {
+      lines.push(`  Gitignore: managed block updated at ${report.gitignore.path}`);
+    } else if (report.gitignore.status === 'block-conflict') {
+      lines.push(
+        `  Gitignore: WARNING — multiple managed blocks at ${report.gitignore.path}; fix manually.`,
+      );
+    }
+    // `unchanged` is intentionally silent — re-installs would otherwise
+    // emit a no-op line every time.
   }
   const totalArtifacts =
     report.agents.length + report.skills.length + report.commands.length + report.gitHooks.length;

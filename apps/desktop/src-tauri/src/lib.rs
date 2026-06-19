@@ -91,6 +91,17 @@ struct CatalogReport {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct GitignoreApplyResult {
+    /// One of 'unchanged' | 'created' | 'updated' | 'block-conflict'.
+    /// Kept as a String here so adding a new variant on the engine side
+    /// (e.g. a future migration outcome) doesn't fail Rust deserialization
+    /// the first time it ships; the frontend renders the verbatim value.
+    status: String,
+    path: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct InstallReport {
     preset_name: String,
     agents: Vec<String>,
@@ -102,6 +113,7 @@ struct InstallReport {
     git_config_activated: bool,
     git_config_current: Option<String>,
     git_config_skipped_reason: Option<String>,
+    gitignore: Option<GitignoreApplyResult>,
 }
 
 fn cli_path() -> String {
@@ -319,6 +331,7 @@ struct InitReport {
     project_root: String,
     preset_name: String,
     manifest_path: String,
+    gitignore: Option<GitignoreApplyResult>,
 }
 
 #[tauri::command]
@@ -517,7 +530,8 @@ mod contract_tests {
             "gitHooks": ["commit-msg", "pre-commit"],
             "gitConfigActivated": true,
             "gitConfigCurrent": ".githooks",
-            "gitConfigSkippedReason": null
+            "gitConfigSkippedReason": null,
+            "gitignore": {"status": "updated", "path": "/proj/.gitignore"}
         }"#;
         let parsed: InstallReport = serde_json::from_str(json).expect("install report");
         assert_eq!(parsed.preset_name, "base");
@@ -525,6 +539,31 @@ mod contract_tests {
         assert!(parsed.git_config_activated);
         assert_eq!(parsed.git_config_current.as_deref(), Some(".githooks"));
         assert!(parsed.git_config_skipped_reason.is_none());
+        let gitignore = parsed.gitignore.expect("gitignore present");
+        assert_eq!(gitignore.status, "updated");
+        assert_eq!(gitignore.path, "/proj/.gitignore");
+    }
+
+    #[test]
+    fn install_report_deserializes_with_null_gitignore() {
+        // The engine emits `null` when the gitignore port was not wired
+        // (today: never from the real CLI, but it remains a valid shape
+        // and Rust must not refuse it).
+        let json = r#"{
+            "presetName": "base",
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "settings": false,
+            "instructions": false,
+            "gitHooks": [],
+            "gitConfigActivated": false,
+            "gitConfigCurrent": null,
+            "gitConfigSkippedReason": null,
+            "gitignore": null
+        }"#;
+        let parsed: InstallReport = serde_json::from_str(json).expect("install report");
+        assert!(parsed.gitignore.is_none());
     }
 
     #[test]
@@ -574,11 +613,14 @@ mod contract_tests {
         let json = r#"{
             "projectRoot": "/proj",
             "presetName": "base",
-            "manifestPath": "/proj/.claude-fw.yaml"
+            "manifestPath": "/proj/.claude-fw.yaml",
+            "gitignore": {"status": "created", "path": "/proj/.gitignore"}
         }"#;
         let parsed: InitReport = serde_json::from_str(json).expect("init report");
         assert_eq!(parsed.project_root, "/proj");
         assert_eq!(parsed.preset_name, "base");
+        let gitignore = parsed.gitignore.expect("gitignore present");
+        assert_eq!(gitignore.status, "created");
     }
 
     #[test]

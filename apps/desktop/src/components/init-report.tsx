@@ -1,9 +1,15 @@
 import { CheckCircle2, XCircle } from 'lucide-react';
 import type { CliError } from '../lib/api';
 
+type GitignoreStatus = 'unchanged' | 'created' | 'updated' | 'block-conflict';
+
 type InitReportProps = {
   readonly status: 'success' | 'error';
-  readonly data?: { presetName: string; manifestPath: string };
+  readonly data?: {
+    presetName: string;
+    manifestPath: string;
+    gitignore?: { status: GitignoreStatus; path: string } | null;
+  };
   readonly error?: CliError;
   readonly onDismiss: () => void;
 };
@@ -32,6 +38,8 @@ export function InitReport({ status, data, error, onDismiss }: InitReportProps) 
 
   if (!data) return null;
 
+  const gitignore = data.gitignore;
+
   return (
     <section className="bg-emerald-950/40 border border-emerald-900 rounded-lg p-4 flex gap-3 items-start">
       <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
@@ -41,6 +49,16 @@ export function InitReport({ status, data, error, onDismiss }: InitReportProps) 
           Preset <span className="font-mono">{data.presetName}</span>, manifest at{' '}
           <span className="font-mono">{data.manifestPath}</span>. You can install now.
         </p>
+        {gitignore?.status === 'created' && (
+          <p className="text-xs text-emerald-300/70">
+            Gitignore <span className="font-mono">.gitignore</span> created with the managed block.
+          </p>
+        )}
+        {gitignore?.status === 'updated' && (
+          <p className="text-xs text-emerald-300/70">
+            Gitignore <span className="font-mono">.gitignore</span> updated to cover install output.
+          </p>
+        )}
       </div>
       <button
         type="button"

@@ -3,7 +3,9 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   type CatalogPort,
+  FsGitignore,
   FsManifestStore,
+  type GitignoreApplyResult,
   LocalProjectInspector,
   NotAGitRepoError,
   PresetName,
@@ -38,11 +40,13 @@ export type InitCommandReport = {
   readonly projectRoot: string;
   readonly presetName: string;
   readonly manifestPath: string;
+  readonly gitignore: GitignoreApplyResult | null;
 };
 
 export const runInit = async (args: InitCommandArgs): Promise<InitCommandReport> => {
   const manifestStore = new FsManifestStore(args.projectRoot);
   const inspector = new LocalProjectInspector(args.projectRoot);
+  const gitignore = new FsGitignore(args.projectRoot);
 
   const attempt = () =>
     initProject({
@@ -51,6 +55,7 @@ export const runInit = async (args: InitCommandArgs): Promise<InitCommandReport>
       catalog: args.catalog,
       manifestStore,
       inspector,
+      gitignore,
     });
 
   // Auto-resolve loop: each iteration runs initProject; if it throws a
@@ -59,9 +64,10 @@ export const runInit = async (args: InitCommandArgs): Promise<InitCommandReport>
   // from looping forever — the natural chain ("missing dir → mkdir → not
   // a repo → git init → success") fits within 3 attempts.
   const MAX_ATTEMPTS = 3;
+  let lastResult: Awaited<ReturnType<typeof attempt>> | null = null;
   for (let attempt_no = 0; attempt_no < MAX_ATTEMPTS; attempt_no++) {
     try {
-      await attempt();
+      lastResult = await attempt();
       break;
     } catch (err) {
       if (err instanceof ProjectDirMissingError && args.createDir) {
@@ -80,6 +86,7 @@ export const runInit = async (args: InitCommandArgs): Promise<InitCommandReport>
     projectRoot: args.projectRoot,
     presetName: args.presetName,
     manifestPath: join(args.projectRoot, MANIFEST_FILENAME),
+    gitignore: lastResult?.gitignore ?? null,
   };
 };
 
@@ -98,13 +105,20 @@ const runGitInit = (cwd: string): Promise<void> =>
   });
 
 export const formatInitReport = (report: InitCommandReport): string => {
-  return [
+  const lines = [
     `Initialized project at: ${report.projectRoot}`,
     `Preset: ${report.presetName}`,
     `Manifest: ${report.manifestPath}`,
-    '',
-    "Run 'claude-fw install' next to materialize the preset.",
-  ].join('\n');
+  ];
+  if (report.gitignore) {
+    if (report.gitignore.status === 'created') {
+      lines.push(`Gitignore: created at ${report.gitignore.path}`);
+    } else if (report.gitignore.status === 'updated') {
+      lines.push(`Gitignore: managed block added at ${report.gitignore.path}`);
+    }
+  }
+  lines.push('', "Run 'claude-fw install' next to materialize the preset.");
+  return lines.join('\n');
 };
 
 export const formatInitReportJson = (report: InitCommandReport): string => {

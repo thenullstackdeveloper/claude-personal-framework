@@ -7,6 +7,7 @@ export { FsStackInspector } from './fs-stack-inspector.js';
  */
 export { FsCatalogReader as CatalogReader } from './fs-catalog-reader.js';
 export { ClaudeWriter } from './claude-writer.js';
+export { FsGitignore } from './fs-gitignore.js';
 export { LockfileStore } from './lockfile-store.js';
 export { FsManifestStore } from './manifest-store.js';
 export { FsPathProbe } from './path-probe.js';

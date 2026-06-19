@@ -24,6 +24,24 @@ describe('<InitReport />', () => {
       expect(container).toBeEmptyDOMElement();
     });
 
+    it('mentions the gitignore creation when the engine reports status=created', () => {
+      const data = {
+        ...sampleData,
+        gitignore: { status: 'created' as const, path: '/tmp/proj/.gitignore' },
+      };
+      render(<InitReport status="success" data={data} onDismiss={() => {}} />);
+      expect(screen.getByText(/created with the managed block/)).toBeInTheDocument();
+    });
+
+    it('mentions the gitignore update when the engine reports status=updated', () => {
+      const data = {
+        ...sampleData,
+        gitignore: { status: 'updated' as const, path: '/tmp/proj/.gitignore' },
+      };
+      render(<InitReport status="success" data={data} onDismiss={() => {}} />);
+      expect(screen.getByText(/updated to cover install output/)).toBeInTheDocument();
+    });
+
     it('invokes onDismiss when the Dismiss button is clicked', async () => {
       const onDismiss = vi.fn();
       const user = userEvent.setup();

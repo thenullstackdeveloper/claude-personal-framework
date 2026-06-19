@@ -190,6 +190,27 @@ export function InstallReport({ status, data, error, onDismiss, onRetry }: Insta
               </span>
             </li>
           )}
+          {data.gitignore?.status === 'created' && (
+            <li>
+              Gitignore: <span className="font-mono">.gitignore</span>{' '}
+              <span className="text-emerald-400/60">(created with managed block)</span>
+            </li>
+          )}
+          {data.gitignore?.status === 'updated' && (
+            <li>
+              Gitignore: <span className="font-mono">.gitignore</span>{' '}
+              <span className="text-emerald-400/60">(managed block updated)</span>
+            </li>
+          )}
+          {data.gitignore?.status === 'block-conflict' && (
+            <li>
+              Gitignore:{' '}
+              <span className="text-amber-300">
+                multiple managed blocks at <span className="font-mono">.gitignore</span> — fix
+                manually before next install
+              </span>
+            </li>
+          )}
         </ul>
       </div>
       <button

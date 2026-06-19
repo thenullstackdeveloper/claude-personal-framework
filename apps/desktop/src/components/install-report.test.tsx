@@ -142,6 +142,31 @@ describe('<InstallReport />', () => {
       expect(screen.queryByText(/left as is — already set/)).not.toBeInTheDocument();
     });
 
+    it('renders a gitignore line when the managed block was updated', () => {
+      const data: InstallReportData = {
+        ...sampleData,
+        gitignore: { status: 'updated', path: '/proj/.gitignore' },
+      };
+      render(<InstallReport status="success" data={data} onDismiss={() => {}} />);
+      expect(screen.getByText(/managed block updated/)).toBeInTheDocument();
+    });
+
+    it('flags a block-conflict in amber with a fix-manually hint', () => {
+      const data: InstallReportData = {
+        ...sampleData,
+        gitignore: { status: 'block-conflict', path: '/proj/.gitignore' },
+      };
+      render(<InstallReport status="success" data={data} onDismiss={() => {}} />);
+      expect(screen.getByText(/multiple managed blocks/)).toBeInTheDocument();
+      expect(screen.getByText(/fix\s+manually/)).toBeInTheDocument();
+    });
+
+    it('does not render a gitignore line when the status is unchanged or null', () => {
+      const data: InstallReportData = { ...sampleData, gitignore: null };
+      render(<InstallReport status="success" data={data} onDismiss={() => {}} />);
+      expect(screen.queryByText(/Gitignore:/)).not.toBeInTheDocument();
+    });
+
     it('invokes onDismiss when the Dismiss button is clicked', async () => {
       const onDismiss = vi.fn();
       const user = userEvent.setup();
