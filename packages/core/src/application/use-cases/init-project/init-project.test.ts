@@ -15,8 +15,19 @@ import type { Instructions } from '../../../domain/model/instructions.js';
 import { Preset } from '../../../domain/model/preset.js';
 import type { ProjectManifest } from '../../../domain/model/project-manifest.js';
 import type { Skill } from '../../../domain/model/skill.js';
-import type { CatalogPort, ManifestStorePort, ProjectInspectorPort } from '../../ports/index.js';
-import { ManifestAlreadyExistsError, NotAGitRepoError, ProjectDirMissingError } from './errors.js';
+import type {
+  CatalogPort,
+  GitignoreApplyResult,
+  GitignorePort,
+  ManifestStorePort,
+  ProjectInspectorPort,
+} from '../../ports/index.js';
+import {
+  GitignoreBlockConflictError,
+  ManifestAlreadyExistsError,
+  NotAGitRepoError,
+  ProjectDirMissingError,
+} from './errors.js';
 import { initProject } from './init-project.use-case.js';
 
 class StubCatalog implements CatalogPort {
@@ -78,6 +89,19 @@ class StubInspector implements ProjectInspectorPort {
   }
   async projectDirExists(): Promise<boolean> {
     return this.dirExists;
+  }
+}
+
+class StubGitignore implements GitignorePort {
+  calls = 0;
+  lastEntries: readonly string[] | null = null;
+  constructor(
+    private result: GitignoreApplyResult = { status: 'created', path: '/tmp/p/.gitignore' },
+  ) {}
+  async ensureManagedBlock(entries: readonly string[]): Promise<GitignoreApplyResult> {
+    this.calls++;
+    this.lastEntries = entries;
+    return this.result;
   }
 }
 
@@ -320,6 +344,60 @@ describe('initProject use case', () => {
           }),
         ),
       ).rejects.toThrow(ProjectDirMissingError);
+    });
+  });
+
+  describe('gitignore', () => {
+    it('returns null gitignore when the port is not provided (back-compat)', async () => {
+      const catalog = presetCatalog('base');
+      const manifestStore = new InMemoryManifestStore();
+
+      const result = await initProject(
+        inputOf({ presetName: PresetName.of('base'), catalog, manifestStore }),
+      );
+
+      expect(result.gitignore).toBeNull();
+    });
+
+    it('seeds the managed block when the port is provided and surfaces the result', async () => {
+      const catalog = presetCatalog('base');
+      const manifestStore = new InMemoryManifestStore();
+      const gitignore = new StubGitignore({ status: 'created', path: '/tmp/p/.gitignore' });
+
+      const result = await initProject({
+        ...inputOf({ presetName: PresetName.of('base'), catalog, manifestStore }),
+        gitignore,
+      });
+
+      expect(gitignore.calls).toBe(1);
+      // Spot-check that the entries handed to the port are the install
+      // output paths — we don't pin the exact list here, the use-case
+      // owns it and the unit tests for the constant live elsewhere.
+      expect(gitignore.lastEntries).toEqual(
+        expect.arrayContaining(['.claude/skills/', '.githooks/']),
+      );
+      expect(result.gitignore).toEqual({ status: 'created', path: '/tmp/p/.gitignore' });
+    });
+
+    it('throws GitignoreBlockConflictError when the port reports a conflict', async () => {
+      const catalog = presetCatalog('base');
+      const manifestStore = new InMemoryManifestStore();
+      const gitignore = new StubGitignore({
+        status: 'block-conflict',
+        path: '/tmp/p/.gitignore',
+      });
+
+      await expect(
+        initProject({
+          ...inputOf({ presetName: PresetName.of('base'), catalog, manifestStore }),
+          gitignore,
+        }),
+      ).rejects.toThrow(GitignoreBlockConflictError);
+
+      // The manifest is written BEFORE the gitignore call — we
+      // intentionally leave it in place so the user can fix the
+      // gitignore manually and run `install` without re-doing init.
+      expect(manifestStore.writeCalls).toBe(1);
     });
   });
 });

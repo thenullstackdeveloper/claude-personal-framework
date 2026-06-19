@@ -23,6 +23,8 @@ import { Skill } from '../../../domain/model/skill.js';
 import type {
   CatalogPort,
   GitConfigPort,
+  GitignoreApplyResult,
+  GitignorePort,
   LockfileStorePort,
   ProjectInspectorPort,
   WriterPort,
@@ -233,6 +235,19 @@ class FakeGitConfig implements GitConfigPort {
   }
   current(): string | null {
     return this.value;
+  }
+}
+
+class StubGitignore implements GitignorePort {
+  calls = 0;
+  lastEntries: readonly string[] | null = null;
+  constructor(
+    private result: GitignoreApplyResult = { status: 'updated', path: '/tmp/p/.gitignore' },
+  ) {}
+  async ensureManagedBlock(entries: readonly string[]): Promise<GitignoreApplyResult> {
+    this.calls++;
+    this.lastEntries = entries;
+    return this.result;
   }
 }
 
@@ -1000,6 +1015,68 @@ describe('install use case', () => {
           expect(err.code).toBe('PROJECT_DIR_MISSING');
         }
       }
+    });
+  });
+
+  describe('gitignore', () => {
+    const baseCatalog = () =>
+      new InMemoryCatalog(
+        [Preset.of({ name: PresetName.of('base'), agentIds: [AgentId.of('a')] })],
+        new Map([['a', 'agent']]),
+      );
+
+    it('written.gitignore is null when the port is not provided (back-compat)', async () => {
+      const result = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog: baseCatalog(),
+        writer,
+        lockfileStore,
+        inspector,
+      });
+
+      expect(result.written.gitignore).toBeNull();
+    });
+
+    it('populates written.gitignore from the port and forwards the install-output entries', async () => {
+      const gitignore = new StubGitignore({ status: 'created', path: '/tmp/p/.gitignore' });
+
+      const result = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog: baseCatalog(),
+        writer,
+        lockfileStore,
+        inspector,
+        gitignore,
+      });
+
+      expect(gitignore.calls).toBe(1);
+      expect(gitignore.lastEntries).toEqual(
+        expect.arrayContaining(['.claude/skills/', '.githooks/']),
+      );
+      expect(result.written.gitignore).toEqual({ status: 'created', path: '/tmp/p/.gitignore' });
+    });
+
+    it('surfaces block-conflict in the report without throwing — materialization is the value', async () => {
+      const gitignore = new StubGitignore({
+        status: 'block-conflict',
+        path: '/tmp/p/.gitignore',
+      });
+
+      const result = await install({
+        manifest: buildManifest(),
+        projectPath: '/tmp/p',
+        catalog: baseCatalog(),
+        writer,
+        lockfileStore,
+        inspector,
+        gitignore,
+      });
+
+      expect(result.written.gitignore?.status).toBe('block-conflict');
+      // The lockfile WAS written — artifacts are materialized; gitignore is auxiliary.
+      expect(lockfileStore.current).not.toBeNull();
     });
   });
 });

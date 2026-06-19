@@ -8,6 +8,8 @@ import { computeDrift } from '../../../domain/services/compute-drift.js';
 import type {
   CatalogPort,
   GitConfigPort,
+  GitignoreApplyResult,
+  GitignorePort,
   LockfileStorePort,
   ProjectInspectorPort,
   WriterPort,
@@ -17,6 +19,23 @@ import { ProjectDirMissingError } from '../init-project/errors.js';
 import { UnmanagedClaudeMdError, UnmanagedGitHookError } from './errors.js';
 
 const GITHOOKS_DIR = '.githooks';
+
+/**
+ * Canonical list of paths the install materializes and that should
+ * therefore be excluded from version control. `init` and `install` both
+ * feed this into the project's `.gitignore` via `GitignorePort`. Kept
+ * here (application layer, co-located with install) because it's an
+ * install-output concern, not a domain invariant; if the writer ever
+ * starts emitting at a new path, this list updates alongside it.
+ */
+export const INSTALL_OUTPUT_GITIGNORE_ENTRIES: readonly string[] = [
+  '.claude/agents/',
+  '.claude/skills/',
+  '.claude/commands/',
+  '.claude/settings.json',
+  '.claude/CLAUDE.md',
+  '.githooks/',
+];
 
 export type InstallInput = {
   readonly manifest: ProjectManifest;
@@ -32,6 +51,15 @@ export type InstallInput = {
    * `core.hooksPath` only happens when this port is provided.
    */
   readonly gitConfig?: GitConfigPort;
+  /**
+   * Optional so existing tests that don't exercise the gitignore
+   * management keep working unchanged. When provided, the use case
+   * ensures the target project's `.gitignore` carries the managed block
+   * for install output. A `block-conflict` is surfaced in the report —
+   * the install does NOT fail on it, since the materialized artifacts
+   * are valuable regardless of the gitignore state.
+   */
+  readonly gitignore?: GitignorePort;
 };
 
 export type InstallResult = {
@@ -70,11 +98,19 @@ export type InstallResult = {
      * to be picked up when the user later runs `git init`.
      */
     readonly gitConfigSkippedReason: 'not-a-git-repo' | null;
+    /**
+     * Outcome of ensuring the managed block in the project's
+     * `.gitignore`. `null` when the `gitignore` port was not provided
+     * (typically by older tests). Real CLI / desktop entrypoints always
+     * wire the port and therefore always populate this field.
+     */
+    readonly gitignore: GitignoreApplyResult | null;
   };
 };
 
 export const install = async (input: InstallInput): Promise<InstallResult> => {
-  const { manifest, projectPath, catalog, writer, lockfileStore, inspector, gitConfig } = input;
+  const { manifest, projectPath, catalog, writer, lockfileStore, inspector, gitConfig, gitignore } =
+    input;
 
   // Probe the project dir first — every downstream op (lockfile read,
   // writer, git-config) assumes the folder exists; failing here with a
@@ -140,6 +176,15 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
     skippedReason: gitConfigSkippedReason,
   } = await maybeActivateHooksPath(gitConfig, composition.gitHooks.length, isGitRepo);
 
+  // Ensure the managed block in `.gitignore` covers everything the
+  // writer just emitted. We run AFTER materialization (so a crash here
+  // never leaves the user with a gitignore that talks about files we
+  // never wrote) but BEFORE the lockfile so the report can carry the
+  // final outcome.
+  const gitignoreResult = gitignore
+    ? await gitignore.ensureManagedBlock(INSTALL_OUTPUT_GITIGNORE_ENTRIES)
+    : null;
+
   const nextLockfile = Lockfile.of({
     presetName: manifest.presetName,
     artifacts: [
@@ -178,6 +223,7 @@ export const install = async (input: InstallInput): Promise<InstallResult> => {
       gitConfigActivated,
       gitConfigCurrent,
       gitConfigSkippedReason,
+      gitignore: gitignoreResult,
     },
   };
 };

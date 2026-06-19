@@ -48,3 +48,27 @@ export class ProjectDirMissingError extends Error {
     this.projectRoot = projectRoot;
   }
 }
+
+/**
+ * Raised by `initProject` when the target project's `.gitignore`
+ * already contains more than one pair of `claude-fw managed` markers.
+ * Two managed blocks mean we can't safely decide which one to update
+ * without clobbering user state — refuse and let them fix it manually.
+ *
+ * `install` does NOT throw on this; it surfaces `block-conflict` in the
+ * report and proceeds with materialization (which is the user-facing
+ * value) so a corrupted gitignore doesn't block work that has nothing
+ * to do with it.
+ */
+export class GitignoreBlockConflictError extends Error {
+  readonly code = 'GITIGNORE_BLOCK_CONFLICT';
+  readonly path: string;
+
+  constructor(path: string) {
+    super(
+      `the .gitignore at "${path}" contains more than one claude-fw managed block; remove one before re-running init`,
+    );
+    this.name = 'GitignoreBlockConflictError';
+    this.path = path;
+  }
+}
