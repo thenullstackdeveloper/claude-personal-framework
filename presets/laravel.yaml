@@ -1,0 +1,11 @@
+extends: base
+skills:
+  - php-hexagonal-rules
+  - laravel-hexagonal-patterns
+  - laravel-testing-rules
+# `detects:` intentionally empty. The current FsStackInspector reads
+# package.json only (npm dependencies), not composer.json. A Laravel
+# project rarely has a Laravel signature in package.json — laravel/framework
+# lives in composer.json. Until the engine supports composer.json (see
+# Deferred 17), this preset is selected manually from the wizard.
+detects: []
