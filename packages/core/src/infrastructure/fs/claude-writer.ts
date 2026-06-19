@@ -68,9 +68,17 @@ export class ClaudeWriter implements WriterPort {
     return join(this.skillDir(id), SKILL_FILENAME);
   }
 
+  private legacyFlatSkillPath(id: { toString(): string }): string {
+    return join(this.artifactDir(SKILLS_SUBDIR), `${id.toString()}${ARTIFACT_EXT}`);
+  }
+
   async writeSkill(skill: Skill): Promise<void> {
     // Claude Code discovers skills as `.claude/skills/<id>/SKILL.md` —
     // the identifier is the directory name (ADR-0006).
+    //
+    // TODO(adr-0006): drop the legacy sweep once every managed project
+    // has been re-installed at least once.
+    await rm(this.legacyFlatSkillPath(skill.id), { force: true });
     const dir = this.skillDir(skill.id);
     await mkdir(dir, { recursive: true });
     await writeFile(this.skillFile(skill.id), skill.content, 'utf-8');

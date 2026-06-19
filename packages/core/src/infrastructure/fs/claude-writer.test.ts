@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -62,6 +62,30 @@ describe('ClaudeWriter', () => {
       const b = await readFile(claudePath('skills', 'beta', 'SKILL.md'), 'utf-8');
       expect(a).toBe('A');
       expect(b).toBe('B');
+    });
+
+    it('sweeps a legacy flat <id>.md alongside writing the new <id>/SKILL.md', async () => {
+      // Project that was materialized by an older version of the writer
+      // still has `.claude/skills/<id>.md` next to where the new folder
+      // will land. The adapter must remove it so the user is not left
+      // with a stale orphan that Claude Code ignores.
+      const writer = new ClaudeWriter(projectRoot);
+      const legacyPath = claudePath('skills', 'migrated.md');
+      await mkdir(claudePath('skills'), { recursive: true });
+      await writeFile(legacyPath, 'legacy body');
+
+      await writer.writeSkill(Skill.of(SkillId.of('migrated'), 'new body'));
+
+      await expect(stat(legacyPath)).rejects.toThrow();
+      const written = await readFile(claudePath('skills', 'migrated', 'SKILL.md'), 'utf-8');
+      expect(written).toBe('new body');
+    });
+
+    it('writeSkill succeeds when there is no legacy flat file to sweep', async () => {
+      const writer = new ClaudeWriter(projectRoot);
+      await expect(writer.writeSkill(Skill.of(SkillId.of('fresh'), 'x'))).resolves.toBeUndefined();
+      const content = await readFile(claudePath('skills', 'fresh', 'SKILL.md'), 'utf-8');
+      expect(content).toBe('x');
     });
 
     it('writes a command to .claude/commands/', async () => {
