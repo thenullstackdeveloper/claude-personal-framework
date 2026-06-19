@@ -15,5 +15,9 @@ target/
 .claude/skills/
 .claude/commands/
 
+# Output of `claude-fw install` — sources of truth live in base.yaml git-hooks:
+# entries + the catalog. Fresh-clone friction tracked as Deferred 16.
+.githooks/
+
 # Token de Plane MCP (no commitear)
 .mcp.json

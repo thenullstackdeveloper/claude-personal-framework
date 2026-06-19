@@ -5,14 +5,54 @@
     {
       "type": "agent",
       "id": "hexagonal-architect",
-      "sha": "c9d93565f4ee89796cdc31bafc99f6ef33380478af2207561a1c9700c55ddfc8"
+      "sha": "100343c6d7d95c1fe3ece984a10eeeb993278e865fbbb00619105ecebc6f9cef"
     },
     {
       "type": "agent",
       "id": "pr-creator",
       "sha": "7b2f8c9dbce382308ec70ce9e2a13e8a19e03153a2e45325b67a61d98527e78e"
+    },
+    {
+      "type": "agent",
+      "id": "plane-pm",
+      "sha": "1cbc34fa14d7bf0f384ef579a88ae53ce65ff7f5cad91dde7eb36e352166f046"
+    },
+    {
+      "type": "skill",
+      "id": "commit-style",
+      "sha": "d0912f6d15b57f71b6f5cfc1278c2a9ece5210390fff09978ab90a406a299770"
+    },
+    {
+      "type": "skill",
+      "id": "typescript-hexagonal-rules",
+      "sha": "f0ca5127b3a9a3ae528e3344791f7dffd78cf8783c846bdb99f81257f945068c"
+    },
+    {
+      "type": "skill",
+      "id": "hexagonal-testing-strategy",
+      "sha": "1a4ad140f5b61f7f543637a81b41051cc8072dcaa24221a4df619ffe96f215dc"
+    },
+    {
+      "type": "skill",
+      "id": "plane-conventions",
+      "sha": "b05fc49638be85a09bd6cfac00abea8a84eba86312d4f110fc18e87687b8a60f"
     }
   ],
   "settings": {},
-  "settingsHash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  "settingsHash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+  "instructionsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "gitHooks": [
+    {
+      "hookName": "commit-msg",
+      "sha": "a8e0cfda41fbe90ef90da4e4725cc7d73b6a4aca2332fdb6e9ce6efcee6c4bed"
+    },
+    {
+      "hookName": "pre-commit",
+      "sha": "e2a25b1941aa0510518807d5087900e965a46fda7c4f1ef3f3a7d6f1c44a1d12"
+    },
+    {
+      "hookName": "pre-push",
+      "sha": "c84f37f0825eba4e320799e9168d582db9edaa2aff0cfc62a26ccde9dc2309a6"
+    }
+  ]
 }
