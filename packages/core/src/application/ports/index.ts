@@ -1,5 +1,6 @@
 export type { CatalogPort } from './catalog.port.js';
 export type { GitConfigPort } from './git-config.port.js';
+export type { GitignoreApplyResult, GitignorePort } from './gitignore.port.js';
 export type { LockfileStorePort } from './lockfile-store.port.js';
 export type { ManifestStorePort } from './manifest-store.port.js';
 export type { PathKind, PathProbePort } from './path-probe.port.js';
