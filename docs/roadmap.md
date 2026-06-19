@@ -1,6 +1,6 @@
 # Roadmap
 
-Prioritized backlog as of 2026-06-17. Update it when priorities shift
+Prioritized backlog as of 2026-06-18. Update it when priorities shift
 or items ship — a stale roadmap is worse than no roadmap.
 
 Tiers reflect *when*, not *what*:
@@ -14,31 +14,7 @@ Tiers reflect *when*, not *what*:
 
 ## Now
 
-### 1 · Presets for the remaining personal stacks (React Native, Vue 3, Laravel)
-
-With the catalog format finalized and the `nestjs` and
-`tauri-rust-react` presets already shipped (each with its own
-stack-specific skills), three stacks remain on the personal radar:
-
-- **React Native**: presumably reuses some of the React patterns from
-  `tauri-rust-react` but with its own testing surface (RNTL, native
-  module mocks) and likely a new `react-native-patterns` skill for
-  navigation, platform branches and gesture handling.
-- **Vue 3**: completely new territory in the catalog. Needs a
-  `vue-hexagonal-patterns` skill mirroring the React one (composables
-  as application layer, Pinia as the store port, etc.) and possibly
-  a `vue-testing-rules` skill.
-- **Laravel**: PHP, fundamentally different stack. The agnostic
-  `hexagonal-architect` covers principles, but a `laravel-hexagonal-
-  patterns` skill (Eloquent vs domain entities, service container as
-  composition root, queue jobs as adapters) would carry the weight.
-
-- *Why now:* unblocked. Content work per stack, not engine work.
-- *Cost:* medium per stack. Each stack ships independently when
-  there's a concrete project that pulls for it — not all three at
-  once on speculation.
-
-### 2 · `CLAUDEPERS-10` — pre-commit/pre-push hooks adapt to the project's tooling
+### 1 · `CLAUDEPERS-10` — pre-commit/pre-push hooks adapt to the project's tooling
 
 Today `base.yaml` ships `pre-commit` and `pre-push` hooks that hard-code
 `pnpm` commands. A project on `npm` or `yarn` sees them try to run a
@@ -89,12 +65,18 @@ renumbered.
 | 13 · Global bin install for the CLI | Now items 1, 2 and 3 closed. Ship `claude-fw` as a globally invokable command (`pnpm i -g` from the repo, or publishing to a scoped registry). Deferred because installing it globally before the UI is polished, the catalog has more stacks, and the engine debt is cleared exports an unfinished feel to anyone who tries it from outside. ≈ 1 h once unblocked. |
 | 15 · ~~Rethink framework-root UX~~ | **Closed** by `CLAUDEPERS-14` (2026-06-14): built-in catalog embedded in the binary, user folders configurable from Settings with precedence `env > user > built-in`, env var `CFW_CATALOG_PATH` for the dev flow of this repo. Decisions and architecture in ADRs 0003 and 0004. |
 | 16 · Onboarding git hooks on fresh clones | Git limitation: `core.hooksPath` is repo-local config (`.git/config`) and is NOT inherited on clone. Now that git hooks ship as a catalog artifact (Recently shipped: `CLAUDEPERS-1`), a fresh clone of any repo using the framework — or a new collaborator joining the project — will NOT have hooks active until they run `claude-fw install`. The install-report line ("Git config: set core.hooksPath = .githooks") mitigates the first install, but the first time someone clones and forgets to run install, the hooks silently don't fire and the catalog looks broken. Surfaced by the `hexagonal-architect` during the planning of `CLAUDEPERS-1` as a known risk explicitly outside the MVP scope. Three options to debate when triggered: (a) a generated block in the installed `CLAUDE.md` with the exact command to run; (b) a `bootstrap.sh` script shipped by the catalog that activates hooks plus whatever else is needed; (c) Claude Code-level detection of `.githooks/` without `core.hooksPath` pointing at it. Trigger: the first time the repo is cloned on another machine and the hooks don't fire, or a collaborator joins the project. |
+| 17 · Stack inspector reads `composer.json` | The current `FsStackInspector` only reads `package.json` (npm dependencies + peerDependencies). The `laravel` preset (CLAUDEPERS-44, shipped 2026-06-18) had to ship with `detects: []` because Laravel's framework signature lives in `composer.json`, not `package.json`. Trigger: the first time a Laravel project lands in the wizard and the user notices "no automatic match" when one is obvious, OR a second PHP-stack preset (Symfony, etc.) makes the gap two-stack-wide. Design when triggered: extend `FsStackInspector` to also read `composer.json` `require`/`require-dev` and aggregate into the dependency pool; consider whether `parse-preset` detects need a source qualifier (`composer:` vs `npm:`) when the same name could appear in both ecosystems. |
 
 ---
 
 ## Recently shipped
 
-- **Consolidation post-`CLAUDEPERS-14` (Now 1, `CLAUDEPERS-29` umbrella)** — three low-risk threads closed in one focused pass before moving outward. Eight commits, all on 2026-06-15 → 2026-06-17:
+- **Presets multistack (Now 1) — React Native, Vue 3, Laravel** — three presets that together close the personal stack list (`tauri-rust-react` and `nestjs` were already shipped). Each block followed the same shape: deep-research workflow against primary sources → 2-3 stack-specific skills → preset YAML with `detects:` → smoke against a real fixture. Twelve commits across `CLAUDEPERS-35`, `CLAUDEPERS-39` and `CLAUDEPERS-44` umbrellas on 2026-06-17 → 2026-06-18:
+  - **React Native — Expo SDK 53+** (`CLAUDEPERS-35` umbrella, 111 agents / 24 verified claims): `38a6b4a` `react-native-patterns` (Expo Router with `Stack.Protected` SDK 53+, Reanimated 4 UI-thread discipline + `scheduleOnUI`/`scheduleOnRN`, Gesture Handler 3 composition hooks, Expo Modules + Inline Modules SDK 56+, storage/permissions/linking/push as hex ports), `6dc05e9` `react-native-testing-rules` (jest-expo, `expo-router/testing-library` with `renderRouter`, RNTL queries, Maestro as the official e2e), `96406f3` preset `react-native.yaml` with `detects: dependencies [expo]`.
+  - **Vue 3 + Vite SPA** (`CLAUDEPERS-39` umbrella, 106 agents / 24 verified claims): `44f6875` `vue-hexagonal-patterns` (`<script setup>` baseline Vue 3.5+, ref as primary over reactive, composables with `toValue()` and plain ref objects, Reactivity Transform removed in 3.4, `provide`/`inject` with `InjectionKey<T>`, Vue Router 4 guards in Composition API), `399b236` `pinia-patterns` (setup-style as editorial default, `storeToRefs` mandatory for destructure, composing stores via `useStore()` at setup top, plugins via `pinia.use()` + `$subscribe`/`$onAction`), `e46f785` `vue-testing-rules` (Vitest + `@vue/test-utils` per Vue's official guidance, `data-testid` over `wrapper.vm`, `createTestingPinia` with `initialState` + `stubActions`, `createMemoryHistory` for router flows, Playwright over Cypress per Vue docs), `7539a20` preset `vue.yaml` with `detects: dependencies [vue]`.
+  - **Laravel 12 — API/backend only** (`CLAUDEPERS-44` umbrella, 106 agents / 23 verified claims): `php-hexagonal-rules` (PHP 8.3+ idioms — `declare(strict_types=1)`, readonly classes for VOs/DTOs, backed enums for closed domain types, exception hierarchy per layer, PHPDoc generics via Larastan), `laravel-hexagonal-patterns` (`app/Domain|Application|Infrastructure` layout as default, Service Container as composition root with `bind` vs `singleton` vs `scoped` criteria + Laravel 12 `#[Bind]` attribute, Eloquent boundary with repository pattern, Form Requests / `spatie/laravel-data`, `lorisleiva/laravel-actions` for use cases invoked from multiple adapters, Jobs/Events/Console as adapters, slim skeleton `bootstrap/app.php`), `laravel-testing-rules` (Pest 3+ as Laravel 11+ scaffold default, `arch()` tests + presets to enforce hex boundaries declaratively, mutation testing via `--mutate`, container-aware `$this->mock()` / `$this->instance()`, official anti-pattern of mocking `Request`/`Config`, native fakes `Http`/`Bus`/`Queue`/`Mail`/`Event`/`Storage` + `Http::preventStrayRequests()` as suite guardrail, `RefreshDatabase` transaction-rollback fast path, first-party DB assertions over raw SQL). Preset `laravel.yaml` ships with `detects: []` (intentional — engine reads `package.json` only; see Deferred 17 for the composer.json follow-up).
+
+- **Consolidation post-`CLAUDEPERS-14` (`CLAUDEPERS-29` umbrella)** — three low-risk threads closed in one focused pass before moving outward. Eight commits, all on 2026-06-15 → 2026-06-17:
   - **Tech debt** flagged by the post-`CLAUDEPERS-14` audit as "monitor, don't act" until it accumulated: `d448f94` consolidated `isErrnoException` into `infrastructure/fs/fs-helpers` (`CLAUDEPERS-32`), `169f807` factored `parseSettings` into a shared parser between `parse-lockfile` and `parse-preset` (`CLAUDEPERS-31`), `670a377` made the desktop import report DTOs from the CLI as the single source of truth with Rust contract tests pinning the shape — recorded in ADR-0005 (`CLAUDEPERS-30`), `1b4fec9` switched the CLI top-level error handler to the parsed `--json` flag (`CLAUDEPERS-33`).
   - **`CLAUDEPERS-1` umbrella leftovers** that never shipped: `2445357` dropped git-hook patch overrides in `applyOverrides` (was a zombie branch — `CLAUDEPERS-9`); `ce37a0f` rejected git-hook overrides at manifest parse with a named rule, fixing the parse/serialize asymmetry (`CLAUDEPERS-8`); `8e3d641` refined `commit-style` with a "qué patrón aplicar" selector + smell test for body verbosity + before/after example (`CLAUDEPERS-7`).
   - **README screenshots** (`2394e4c`, `CLAUDEPERS-34`): five captures of the new UI (welcome wizard step 1/2, free mode, recent projects, settings) under `docs/img/` with a new "Inside the desktop app" section in the README. Closed the umbrella.
