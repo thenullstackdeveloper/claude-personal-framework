@@ -10,14 +10,14 @@ target/
 .claude/settings.local.json
 .claude/.cache/
 
-# Output of `claude-fw install` — sources of truth live in agents/, skills/, commands/
+# Token de Plane MCP (no commitear)
+.mcp.json
+
+# >>> claude-fw managed (do not edit) >>>
 .claude/agents/
 .claude/skills/
 .claude/commands/
-
-# Output of `claude-fw install` — sources of truth live in base.yaml git-hooks:
-# entries + the catalog. Fresh-clone friction tracked as Deferred 16.
+.claude/settings.json
+.claude/CLAUDE.md
 .githooks/
-
-# Token de Plane MCP (no commitear)
-.mcp.json
+# <<< claude-fw managed <<<
