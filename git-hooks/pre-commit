@@ -4,7 +4,67 @@
 # Enable once per clone with:
 #   git config core.hooksPath .githooks
 #
-# Assumes pnpm is on PATH (the framework targets pnpm workspaces).
+# Strategy: runtime detection of the package manager from lock-files
+# in the repo root. Adapts to manager switches (e.g., pnpm → npm)
+# without re-running `claude-fw install`.
+#
 # Bypass with `git commit --no-verify` when you know what you're doing.
 
-exec pnpm lint
+set -euo pipefail
+
+# I1 — defensive: ensure cwd is the repo root so the lock-file probes
+# below are meaningful even when the hook is invoked from a subdir.
+cd "$(git rev-parse --show-toplevel)"
+
+# C3 — preset that inherits this hook may have landed in a non-JS
+# project (e.g., laravel extends base). Skip silently rather than
+# fail the commit on something the user can't fix without leaving
+# the framework's territory.
+[ -f package.json ] || exit 0
+
+# Detect package manager from lock-files. Order = precedence on
+# ambiguity (O1).
+detected=()
+[ -f pnpm-lock.yaml ]    && detected+=(pnpm)
+[ -f yarn.lock ]         && detected+=(yarn)
+[ -f package-lock.json ] && detected+=(npm)
+
+# O1 — flag ambiguity but proceed with the precedence-winner.
+if [ "${#detected[@]}" -gt 1 ]; then
+  echo "⚠ pre-commit: multiple lock-files present (${detected[*]}); using ${detected[0]}" >&2
+fi
+
+# C1 — no lock-file → bail loud. Better than a cryptic "pnpm: command
+# not found" from a shell that doesn't know what we wanted.
+if [ "${#detected[@]}" -eq 0 ]; then
+  cat >&2 <<'EOF'
+✗ pre-commit: no package manager lock-file found.
+  Expected one of: pnpm-lock.yaml, yarn.lock, package-lock.json.
+  Initialize your manager (e.g., `pnpm install`) or remove this hook.
+EOF
+  exit 1
+fi
+
+PM="${detected[0]}"
+
+# C2 — manager binary present?
+if ! command -v "$PM" >/dev/null 2>&1; then
+  echo "✗ pre-commit: detected $PM but the binary is not in PATH (install it or activate corepack)" >&2
+  exit 1
+fi
+
+# O2 — skip silently when the project doesn't define a `lint` script.
+# Avoids forcing a `lint` script on every JS project that adopts the
+# catalog hooks. `node -p` is safe to call here: any JS project that
+# has a lock-file also has node available.
+has_lint=$(node -p "Boolean(require('./package.json').scripts && require('./package.json').scripts.lint)" 2>/dev/null || echo "false")
+if [ "$has_lint" != "true" ]; then
+  exit 0
+fi
+
+# I2 — lint is per-package (not per-workspace); no workspaces flag.
+case "$PM" in
+  pnpm) exec pnpm lint ;;
+  yarn) exec yarn lint ;;
+  npm)  exec npm run lint ;;
+esac

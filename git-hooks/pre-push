@@ -1,9 +1,77 @@
 #!/usr/bin/env bash
-# pre-push hook — run the full workspace test suite before each push.
+# pre-push hook — run the workspace test suite before each push.
 #
 # Enable once per clone with:
 #   git config core.hooksPath .githooks
 #
-# Assumes pnpm is on PATH. Bypass with `git push --no-verify` when needed.
+# Strategy: runtime detection of the package manager + workspaces
+# awareness from lock-files / package.json. Adapts to manager
+# switches without re-running `claude-fw install`.
+#
+# Bypass with `git push --no-verify` when needed.
 
-exec pnpm -r test
+set -euo pipefail
+
+# I1 — defensive cwd.
+cd "$(git rev-parse --show-toplevel)"
+
+# C3 — non-JS project, nothing to test on the JS side.
+[ -f package.json ] || exit 0
+
+# Detect package manager from lock-files (with precedence on ambiguity).
+detected=()
+[ -f pnpm-lock.yaml ]    && detected+=(pnpm)
+[ -f yarn.lock ]         && detected+=(yarn)
+[ -f package-lock.json ] && detected+=(npm)
+
+# O1 — flag ambiguity.
+if [ "${#detected[@]}" -gt 1 ]; then
+  echo "⚠ pre-push: multiple lock-files present (${detected[*]}); using ${detected[0]}" >&2
+fi
+
+# C1 — no lock-file → bail loud.
+if [ "${#detected[@]}" -eq 0 ]; then
+  cat >&2 <<'EOF'
+✗ pre-push: no package manager lock-file found.
+  Expected one of: pnpm-lock.yaml, yarn.lock, package-lock.json.
+  Initialize your manager (e.g., `pnpm install`) or remove this hook.
+EOF
+  exit 1
+fi
+
+PM="${detected[0]}"
+
+# C2 — binary present?
+if ! command -v "$PM" >/dev/null 2>&1; then
+  echo "✗ pre-push: detected $PM but the binary is not in PATH (install it or activate corepack)" >&2
+  exit 1
+fi
+
+# O2 — skip silently when no `test` script is defined.
+has_test=$(node -p "Boolean(require('./package.json').scripts && require('./package.json').scripts.test)" 2>/dev/null || echo "false")
+if [ "$has_test" != "true" ]; then
+  exit 0
+fi
+
+# I2 — workspaces awareness. The `npm test --workspaces` syntax landed
+# in npm 7+ (released 2020), `yarn workspaces foreach run test` in
+# Yarn Berry 2.0; both are baseline in 2026 greenfield. pnpm uses `-r`.
+has_ws=$(node -p "Boolean(require('./package.json').workspaces)" 2>/dev/null || echo "false")
+
+case "$PM" in
+  pnpm)
+    if [ "$has_ws" = "true" ]; then exec pnpm -r test
+    else exec pnpm test
+    fi
+    ;;
+  yarn)
+    if [ "$has_ws" = "true" ]; then exec yarn workspaces foreach run test
+    else exec yarn test
+    fi
+    ;;
+  npm)
+    if [ "$has_ws" = "true" ]; then exec npm test --workspaces
+    else exec npm test
+    fi
+    ;;
+esac
